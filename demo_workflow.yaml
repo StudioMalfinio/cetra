@@ -1,0 +1,25 @@
+workflow:
+  name: "hello_agent_demo"
+  description: "Démonstration basique d'un agent conversationnel"
+  
+  agents:
+    greeter:
+      instructions: "Tu es un assistant amical et professionnel. Réponds de manière chaleureuse et personnalisée."
+      temperature: 0.7
+      
+    helper:
+      instructions: "Tu es un assistant serviable qui aime aider les utilisateurs."
+      temperature: 0.5
+  
+  steps:
+    - name: "welcome"
+      agent: "greeter" 
+      ask: "Dis bonjour à {name} et présente-toi brièvement"
+      
+    - name: "offer_help"
+      agent: "helper"
+      ask: "Demande à {name} comment tu peux l'aider aujourd'hui"
+      
+    - name: "farewell"
+      agent: "greeter"
+      ask: "Remercie {name} et dis au revoir poliment"
