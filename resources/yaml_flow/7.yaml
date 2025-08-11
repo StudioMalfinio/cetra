@@ -1,0 +1,91 @@
+flow:
+  - id: EC000
+    prompt: "Welcome to our computer shop. How can I help you today?"
+    next_step: EC001
+
+  - id: EC001
+    prompt: "Are you returning the laptop due to quality issues or for a seven-day no-reason return?"
+    actions:
+      - condition: "Quality problems"
+        next_step: EC002
+      - condition: "Seven days no reason to return"
+        next_step: EC004
+
+  - id: EC002
+    tool_call:
+      name: laptopMaintenance
+      description: "Suggestions are given for the quality problems of the laptop"
+      parameters:
+        computer_form:
+          type: string
+          description: "Laptop type, e.g. \"Honor\""
+          required: true
+        computer_matter:
+          type: string
+          description: "Laptop problems, such as \"lagging use\""
+          required: true
+      output:
+        is_solution:
+          type: string
+          description: "Solutions, e.g., \"reset the system\"."
+        is_phone:
+          type: string
+          description: "Telephone number of maintenance staff, e.g. \"0233796\"."
+    response: "Please try to {is_solution}. You can also contact our technician at {is_phone} if the issue persists. Has the quality problem of the laptop been resolved?"
+    next_step: EC003
+
+  - id: EC003
+    prompt: "Has the problem been resolved?"
+    actions:
+      - condition: "Yes"
+        next_step: EC005
+      - condition: "Still unresolved"
+        next_step: EC009
+
+  - id: EC004
+    prompt: "You can return the laptop. Is the laptop well-packed?"
+    actions:
+      - condition: "Yes"
+        next_step: EC007
+      - condition: "NO"
+        next_step: EC008
+
+  - id: EC005
+    prompt: "Great! If you encounter any related problems in the future, feel free to consult us again."
+    next_step: null
+
+  - id: EC006
+    prompt: "Please pack the laptop and bring it to our store in Computer City for inspection. If the notebook is not damaged, we will process the return on-site."
+    next_step: null
+
+  - id: EC007
+    prompt: "The user sends the laptop to the store of Computer City and we will process the return."
+    next_step: null
+
+  - id: EC008
+    prompt: "The laptop cannot be returned because the packaging is not in good condition. You can only return the product if the packaging is in good condition."
+    next_step: null
+
+  - id: EC009
+    tool_call:
+      name: returnCondition
+      description: "Check if the return conditions are met"
+      parameters:
+        return_matterr:
+          type: string
+          description: "Whether the laptop is damaged or not, enumeration type, [yes, no]"
+          required: true
+      output:
+        is_return:
+          type: string
+          description: "Whether the return condition is satisfied, enumeration type, [satisfied, not satisfied]"
+    response: "Based on the information, {is_return}."
+    actions:
+      - condition: "Satisfied"
+        next_step: EC006
+      - condition: "Unsatisfied"
+        next_step: EC010
+
+  - id: EC010
+    prompt: "We regret to inform you that the return condition is not met, so it is not possible to return the laptop."
+    next_step: null

@@ -1,0 +1,125 @@
+flow:
+  - id: start
+    prompt: "Welcome to the Digital Invoicing Assistant. How can I help you today? You can ask me to check a ticket, import tickets via SMS, or send tickets to an email address."
+    actions:
+      - condition: "user_input.contains('check the ticket')"
+        next_step: look_ticket
+      - condition: "user_input.contains('import tickets')"
+        next_step: validate_new_ticket
+      - condition: "user_input.contains('send tickets')"
+        next_step: send_ticket
+      - condition: "user_input.contains('exit')"
+        next_step: null
+
+  - id: look_ticket
+    tool_call:
+      name: lookTicket
+      description: "View the user's ticket"
+      parameters:
+        user_name:
+          type: string
+          description: "Username, alpha + number + space only"
+          required: true
+        user_password:
+          type: string
+          description: "User password, 8~16 digits uppercase and lowercase letters + numbers + symbols"
+          required: true
+    response: "Here are the details of your ticket: {{ ticket_dict }}. If you want to know about one of the invoices, please specify."
+    next_step: tell_user_ticket_contents
+
+  - id: tell_user_ticket_contents
+    prompt: "I have provided the ticket details. Would you like to know more about a specific invoice?"
+    actions:
+      - condition: "user_input.contains('yes')"
+        next_step: provide_invoice_details
+      - condition: "user_input.contains('no')"
+        next_step: start
+    next_step: start
+
+  - id: provide_invoice_details
+    prompt: "Please specify which invoice you are interested in. I can provide details such as buyer, seller, total amount, invoice code, invoice number, and a link to the invoice."
+    actions:
+      - condition: "user_input.contains('buyer')"
+        next_step: provide_invoice_details
+      - condition: "user_input.contains('seller')"
+        next_step: provide_invoice_details
+      - condition: "user_input.contains('total amount')"
+        next_step: provide_invoice_details
+      - condition: "user_input.contains('invoice code')"
+        next_step: provide_invoice_details
+      - condition: "user_input.contains('invoice number')"
+        next_step: provide_invoice_details
+      - condition: "user_input.contains('link')"
+        next_step: provide_invoice_details
+      - condition: "user_input.contains('no')"
+        next_step: start
+    next_step: start
+
+  - id: validate_new_ticket
+    tool_call:
+      name: checkTicket
+      description: "Check whether the content of the SMS is correct"
+      parameters:
+        message_txt:
+          type: string
+          description: "The content of the SMS, must contain a link."
+          required: true
+    response: "{{ is_exist }}"
+    actions:
+      - condition: "is_exist == 'true'"
+        next_step: import_new_ticket
+      - condition: "is_exist == 'false'"
+        next_step: inform_no_tickets
+    next_step: null
+
+  - id: import_new_ticket
+    tool_call:
+      name: inBar
+      description: "Import the ticket into the user's ticket package"
+      parameters:
+        ticket_code:
+          type: string
+          description: "Invoice code, e.g. \"011002301111\""
+          required: true
+        ticket_num:
+          type: string
+          description: "Invoice number, e.g. \"93288473\""
+          required: true
+        user_name:
+          type: string
+          description: "Username, alpha + number + space only"
+          required: true
+    response: "Ticket imported successfully."
+    next_step: start
+
+  - id: inform_no_tickets
+    prompt: "The content of the ticket SMS you provided is invalid. Please re-check the content of the SMS message."
+    next_step: start
+
+  - id: send_ticket
+    tool_call:
+      name: sendTicket
+      description: "Send the invoice according to the email address"
+      parameters:
+        ticket_code:
+          type: string
+          description: "Invoice code, e.g. \"011002301111\""
+          required: true
+        ticket_num:
+          type: string
+          description: "Invoice number, e.g. \"93288473\""
+          required: true
+        user_name:
+          type: string
+          description: "Username, alpha + number + space only"
+          required: true
+        user_password:
+          type: string
+          description: "User password, 8~16 upper and lower case letters"
+          required: true
+        emaill:
+          type: string
+          description: "The other party's email address, such as \"uqhuq@qq.com\", \"ppcc@qq.com\""
+          required: true
+    response: "The invoice has been sent. If it was not successful, please check the email address."
+    next_step: start

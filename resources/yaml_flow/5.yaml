@@ -1,0 +1,84 @@
+flow:
+  - id: HF000
+    prompt: "Start"
+    next_step: HF001
+
+  - id: HF001
+    prompt: "Subgoal: Confirm changes availability. Ask for the number of people transferring, boarding time, and boarding location, call lookTransferVehicle and confirm if changes are possible based on the returned vehicle_info."
+    tool_call:
+      name: lookTransferVehicle
+      description: "Obtain available vehicle information based on the given ride information."
+      parameters:
+        transfer_number:
+          type: integer
+          description: "The number of people transferring. Positive integer."
+          required: true
+        original_pickup_time:
+          type: string
+          description: "The original desired pickup time for the ride. The format is: Day + Hour + Minute, such as \"17:21 on the 23rd\"."
+          required: true
+        transfer_loca:
+          type: string
+          description: "Transfer address. The format is: City + District/County + Road name + Road number, such as \"No. 12, Yangliu Road, Wuhou District, Jiang City\"."
+          required: true
+        user_id:
+          type: string
+          description: "The unique identifier of the user who initiated the ride. UUID. For example, \"02f3dda1-6fa6-b7fd-3ee7-abd8a9706941\". If not filled in, the system will automatically obtain it."
+          required: false
+      output:
+        vehicle_info:
+          type: object
+          description: "Vehicle information. If not, there is no car available."
+          properties:
+            car_num:
+              type: string
+              description: "License plate number. The first is a Chinese character, followed by letters and numbers from 6 to 7, without the letters I and O."
+            arrive_time:
+              type: string
+              description: "Estimated arrival time. The format is: Day + hour + minute, such as \"12:08 on the 19th\"."
+            arrive_loca:
+              type: string
+              description: "Actual meeting place, The format is: City + District/County + Road name + Road number, such as \"No. 66 Guihua Road, Huangpu District, Yang City\"."
+            residuum:
+              type: integer
+              description: "Unfilled place. Positive integer."
+            car_type:
+              type: string
+              description: "Vehicle type, such as \"Audi PLus5\"."
+    actions:
+      - condition: "vehicle_info is not null"
+        next_step: HF006
+      - condition: "vehicle_info is null"
+        next_step: HF003
+
+  - id: HF006
+    prompt: "Inform the user of currently available changes based on the returned vehicle_info, and ask if the user selects one?"
+    actions:
+      - condition: "user selects one"
+        next_step: HF005
+      - condition: "user does not select"
+        next_step: HF002
+
+  - id: HF005
+    prompt: "Notify user that the reservation is successful, and collect parameter: use_phone. The user will receive a call when the car is about to arrive"
+    next_step: null # Assuming this is an end point for this path
+
+  - id: HF002
+    prompt: "Ask if the user needs to change requirements?"
+    actions:
+      - condition: "change confirmed"
+        next_step: HF001
+      - condition: "user does not change"
+        next_step: HF004
+
+  - id: HF004
+    prompt: "Subgoal: Apologize to the user. Apologize to the user for the few cars and difficulty in hailing rides, and thank the user for choosing this service. The user is recommended to contact again in half an hour if necessary."
+    next_step: null # Assuming this is an end point for this path
+
+  - id: HF003
+    prompt: "Subgoal: Invitation to re-supply the information. Inform the user that there are no suitable changes based on the given information and the search for appropriate information. The user is invited to re-supply the number of people transferring, boarding time, and boarding location to confirm again"
+    actions:
+      - condition: "Yes"
+        next_step: HF001
+      - condition: "NO"
+        next_step: HF004

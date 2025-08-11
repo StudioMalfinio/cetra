@@ -1,0 +1,73 @@
+flow:
+  - id: PB000
+    prompt: "What is your current location? Which cuisine would you prefer? And when would you like to dine?"
+    next_step: PB001
+
+  - id: PB001
+    tool_call:
+      name: searchRestaurant
+      description: "Retrieve a list of restaurants based on the user's location, cuisine preference, and dining time."
+      parameters:
+        location:
+          type: string
+          description: "The location where the user wants to find a restaurant. City + District/County + Road Name + Road Number + Neighborhood Name + Building Number + Floor Number + Household Number. Here is one of its examples, No. 15, 4th Floor, Building 5, Bishui Manor, No. 23 Xiangshan Road, Haidian District, Beijing."
+          required: true
+        cuisine:
+          type: string
+          description: "The preferred cuisine type. Enumeration type, [Shandong cuisine, Sichuan cuisine, Cantonese cuisine, Jiangsu cuisine, Fujian cuisine, Zhejiang cuisine, Hunan cuisine, Anhui cuisine]"
+          required: true
+        dining_time:
+          type: string
+          description: "The desired dining time. The format is \"day + hour\", for example, \"12 o'clock on the 19th\"."
+          required: true
+      output:
+        data:
+          type: object
+          description: "List of restaurants with basic details. A null value for this implies that there are no restaurants available."
+          properties:
+            restaurant_id:
+              type: string
+              description: "Unique identifier for the restaurant. Uuid format, for example, \"28cecd28-6760-ec6b-a2ac-ae7e9b18a57d\""
+            name:
+              type: string
+              description: "The name of the restaurant. For example, Chongqing Xilaifu Restaurant"
+            address:
+              type: string
+              description: "The address of the restaurant. Its format is Province/City+District/County+Road name+Road number. Here is an example, 66 Jinxiu Road, Shenzhen County, Hunan Province."
+    actions:
+      - condition: "data is null"
+        next_step: PB002
+      - condition: "data is not null"
+        next_step: PB004
+
+  - id: PB002
+    prompt: "Sorry, no restaurants match your criteria. Would you like to try searching again with different preferences?"
+    actions:
+      - condition: "user input is 'yes'"
+        next_step: PB001
+      - condition: "user input is 'no'"
+        next_step: PB003
+
+  - id: PB003
+    prompt: "I apologize for the inconvenience. Goodbye!"
+    next_step: null
+
+  - id: PB004
+    prompt: "I found a few restaurants for you: {{ data | tojson }}. Are you satisfied with these options?"
+    actions:
+      - condition: "user input is 'no'"
+        next_step: PB005
+      - condition: "user input is 'yes'"
+        next_step: PB006
+
+  - id: PB005
+    prompt: "I can recommend other restaurants. Would you like to see more options?"
+    actions:
+      - condition: "user input is 'yes'"
+        next_step: PB001
+      - condition: "user input is 'no'"
+        next_step: PB003
+
+  - id: PB006
+    prompt: "The restaurant you chose is located at {{ data.address }}. Please go there to experience it!"
+    next_step: null

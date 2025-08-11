@@ -1,0 +1,80 @@
+flow:
+  - id: CY001
+    prompt: "Welcome to our computer shop! We have three brands: Honor, Xiaomi, and Asus. Do you have a favorite among them?"
+    actions:
+      - condition: "NO"
+        next_step: CY003
+      - condition: "Yes"
+        next_step: CY002
+
+  - id: CY003
+    prompt: "Our notebooks from Honor, Xiaomi, and Asus are all thin, light, easy to carry, and have high performance. Are you willing to consider one of these?"
+    actions:
+      - condition: "Willing to consider"
+        next_step: CY002
+      - condition: "Unwilling to consider"
+        next_step: CY004
+
+  - id: CY004
+    prompt: "I apologize that I couldn't recommend a suitable notebook for you. Is there anything else I can help with?"
+    next_step: null
+
+  - id: CY002
+    tool_call:
+      name: nameRecommended
+      description: "Random recommendation of a notebook brand"
+      parameters: {} # No input parameters as per documentation
+      output:
+        notebook_name:
+          type: string
+          description: "Notebook brand, enumerated type, [Honor, Xiaomi, ASUS], default \"Honor\""
+    response: "Based on your preference, I recommend the {notebook_name} brand. Are you satisfied with this notebook brand?"
+    actions:
+      - condition: "Not satisfied"
+        next_step: CY006
+      - condition: "Satisfied"
+        next_step: CY005
+
+  - id: CY006
+    prompt: "I understand. Let me try recommending another brand."
+    next_step: CY002
+
+  - id: CY005
+    prompt: "Great! To help me recommend a specific model, what is your desired screen size, color, and memory capacity?"
+    tool_call:
+      name: notebookRecommended
+      description: "Provide the price and purchase link of the notebook"
+      parameters:
+        notebook_size:
+          type: string
+          description: "Notebook screen size, floating point inches, default \"14.0 inches\""
+          required: true
+        notebook_color:
+          type: string
+          description: "Notebook color, default \"grey\""
+          required: true
+        notebook_memory:
+          type: string
+          description: "Notebook memory, positive integer GB, default \"16GB\""
+          required: true
+      output:
+        is_price:
+          type: string
+          description: "Notebook price, for example, \"3200 yuan\""
+        is_link:
+          type: string
+          description: "Notebook purchase links, e.g. ,\"https://cart.jd.com/addToCart.html?rcd=1&pid=100045237138&pc=1&eb=1&rid=1713786042175&em=\""
+    response: "The recommended notebook's price is {is_price}. Would you like to buy it?"
+    actions:
+      - condition: "Buy"
+        next_step: CY007
+      - condition: "Do not buy"
+        next_step: CY008
+
+  - id: CY007
+    prompt: "Excellent! You can complete your payment using this link: {is_link}. Let me know if you need any assistance."
+    next_step: null
+
+  - id: CY008
+    prompt: "No problem at all. Take your time to think about it. Is there anything else I can assist you with?"
+    next_step: null

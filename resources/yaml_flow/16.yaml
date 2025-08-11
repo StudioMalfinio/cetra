@@ -1,0 +1,91 @@
+flow:
+  - id: LA000
+    prompt: "Change surrogate driving reservation"
+    next_step: LA001
+
+  - id: LA001
+    prompt: "Current goal: Determine whether the reservation information can be found. Ask the user for appointment information that includes ID number and specific time of reservation."
+    tool_call:
+      name: findReservation
+      description: "Inquire about reservation information"
+      parameters:
+        person_id:
+          type: string
+          description: "User ID number, 18 digits, default \"510000199312122921\""
+          required: true
+        atten_time:
+          type: string
+          description: "The specific time of the appointment, year + month + day + hour + minute, e.g. “February 28, 2030 at 10:50”"
+          required: true
+      output:
+        is_finding:
+          type: string
+          description: "Whether the corresponding appointment information can be found, enumeration type, [not found, found]"
+    actions:
+      - condition: "is_finding == 'not found'"
+        next_step: LA002
+      - condition: "is_finding == 'found'"
+        next_step: LA003
+
+  - id: LA002
+    prompt: "Current goal: Inform that the information was not found. Inform the user that the reservation information could not be found, and advise that the reservation information can only be found if an appointment is made, and ask the user if they need to look it up again"
+    actions:
+      - condition: "user_input == 'Needed'"
+        next_step: LA001
+      - condition: "user_input == 'Not needed'"
+        next_step: LA008
+
+  - id: LA003
+    prompt: "Current goal: Ask the user if he/she wants to change information. Inform the user that the reservation information has been successfully found. Ask if the user confirms that he/she wants to change it"
+    actions:
+      - condition: "user_input == 'Confirmed to change'"
+        next_step: LA005
+      - condition: "user_input == 'Not confirmed to change'"
+        next_step: LA004
+
+  - id: LA004
+    prompt: "Ask the user to think it over before telling us"
+    next_step: null
+
+  - id: LA005
+    prompt: "Current goal: Determine if the change is successful. Ask the user for the origin and destination that need to be changed, and call changeReservation to determine if the change was successful based on the returned is_success"
+    tool_call:
+      name: changeReservation
+      description: "Change reservation information"
+      parameters:
+        taxi_begin:
+          type: string
+          description: "Starting place, e.g. “Nanshan Park, Chongqing”."
+          required: true
+        taxi_end:
+          type: string
+          description: "Destination, e.g. \"Guanyinqiao, Chongqing\""
+          required: true
+      output:
+        is_success:
+          type: string
+          description: "Whether the cancellation was successful, enumeration type, [Yes, No]"
+        main_reason:
+          type: string
+          description: "The reason for the unsuccessful change, such as “Provided destination does not exist\", will be returned empty if the change has been successful"
+    actions:
+      - condition: "is_success == 'Yes'"
+        next_step: LA006
+      - condition: "is_success == 'No'"
+        next_step: LA007
+
+  - id: LA006
+    prompt: "Inform the user that the change has been successful"
+    next_step: null
+
+  - id: LA007
+    prompt: "Current goal: Ask the user whether to change again. Tell the user that the change is unsuccessful, and inform the user of the reason why the change was not successful based on the returned main_reason. Ask the user whether to change the information again"
+    actions:
+      - condition: "user_input == 'Yes'"
+        next_step: LA005
+      - condition: "user_input == 'NO'"
+        next_step: LA008
+
+  - id: LA008
+    prompt: "Say goodbye to the user"
+    next_step: null

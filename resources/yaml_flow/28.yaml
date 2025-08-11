@@ -1,0 +1,119 @@
+flow:
+  - id: ask_book_flight
+    prompt: "Book a flight"
+    next_step: inquire_flight_id
+
+  - id: inquire_flight_id
+    prompt: "Please provide the Flight ID."
+    next_step: check_availability
+
+  - id: check_availability
+    tool_call:
+      name: checkAvailability
+      description: "Check the ticket availability for a flight given by the user"
+      parameters:
+        plan_code:
+          type: string
+          description: "Flight ID, such as \"CA1234, CZ5678, MU9101, 3U4567, FM8901, HU7890\""
+          required: true
+        estimated_time:
+          type: string
+          description: "Estimated time, in the format: year + month + day + hour. For example, \"12 o'clock on January 7, 2199\". If not filled in, the default is now."
+          required: false
+      output:
+        is_air:
+          type: string
+          description: "Whether the airplane can be ticketed. Enumerated type, [true, false]"
+    response: "Checking flight availability..."
+    next_step: handle_availability_check
+
+  - id: handle_availability_check
+    actions:
+      - condition: "is_air == 'true'"
+        next_step: flight_available
+      - condition: "is_air == 'false'"
+        next_step: flight_unavailable
+
+  - id: flight_available
+    prompt: "The flight is available. Please provide your ID number and name for reservation."
+    next_step: reserve_flight
+
+  - id: reserve_flight
+    tool_call:
+      name: reserveFlight
+      description: "Reserve the user's flight number and return the reservation information"
+      parameters:
+        plan_code:
+          type: string
+          description: "Flight ID, such as \"CA1234, CZ5678, MU9101, 3U4567, FM8901, HU7890\""
+          required: true
+        cabin_type:
+          type: string
+          description: "Cabin type. Enumerated type, [Economy Class, Business Class, First Class]. If not filled in, these types will be selected from front to back"
+          required: false
+        estimated_time:
+          type: string
+          description: "Estimated time, in the format: year + month + day + hour. For example, \"12 o'clock on January 7, 2199\". If not filled in, the default is now."
+          required: false
+      output:
+        is_successful:
+          type: string
+          description: "Whether the reservation is successful. Enumerated type, [true, false]"
+        boarding_number:
+          type: string
+          description: "Boarding number, such as \"C1, D3, E7, F2, G4, H6\"."
+        seat_number:
+          type: string
+          description: "Seat number, such as \"12A, 15C, 21F, 28D, 34B, 42E\""
+        airport_name:
+          type: string
+          description: "Airport name, such as \"Beijing Capital International Airport, Shanghai Pudong International Airport\""
+        actual_time:
+          type: string
+          description: "Actual time, in the format: year + month + day + hour. For example, \"12 o'clock on January 7, 2199\". If not filled in, the default is now."
+    response: "Attempting to reserve your flight..."
+    next_step: handle_reservation_result
+
+  - id: handle_reservation_result
+    actions:
+      - condition: "is_successful == 'true'"
+        next_step: reservation_succeeded
+      - condition: "is_successful == 'false'"
+        next_step: reservation_failed
+
+  - id: reservation_succeeded
+    prompt: "Your reservation succeeded! Your booking details are: Boarding Number: {boarding_number}, Seat Number: {seat_number}, Airport: {airport_name}, Actual Time: {actual_time}. Would you like to book another flight?"
+    next_step: ask_rebook_decision_after_success
+
+  - id: reservation_failed
+    prompt: "Your reservation failed. Would you like to book again?"
+    next_step: ask_rebook_decision_after_failure
+
+  - id: flight_unavailable
+    prompt: "The flight is unavailable. Would you like to book another flight?"
+    next_step: ask_rebook_decision_after_unavailability
+
+  - id: ask_rebook_decision_after_success
+    actions:
+      - condition: "user_input == 'yes'"
+        next_step: inquire_flight_id
+      - condition: "user_input == 'no'"
+        next_step: end_service
+
+  - id: ask_rebook_decision_after_failure
+    actions:
+      - condition: "user_input == 'yes'"
+        next_step: inquire_flight_id
+      - condition: "user_input == 'no'"
+        next_step: end_service
+
+  - id: ask_rebook_decision_after_unavailability
+    actions:
+      - condition: "user_input == 'yes'"
+        next_step: inquire_flight_id
+      - condition: "user_input == 'no'"
+        next_step: end_service
+
+  - id: end_service
+    prompt: "You are welcome to contact us again for future needs."
+    next_step: null

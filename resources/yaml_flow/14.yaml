@@ -1,0 +1,107 @@
+flow:
+  - id: FP000
+    prompt: "Apply for a substitute driver. What is your desired time, starting point, and ending point for the ride?"
+    next_step: FP001
+
+  - id: FP001
+    tool_call:
+      name: listService
+      description: "Find a suitable vehicle"
+      parameters:
+        travel_time:
+          type: string
+          description: "Ride time, year + month + day, e.g. \"May 27, 2080\""
+          required: true
+        travel_begin:
+          type: string
+          description: "Starting point, e.g. \"Chongqing Qixinggang\""
+          required: true
+        travel_end:
+          type: string
+          description: "End of the ride, e.g. \"Chongqing Liberation Monument\""
+          required: true
+      output:
+        is_car:
+          type: string
+          description: "Whether there is a suitable vehicle, enumeration type, [no, yes]"
+        is_form:
+          type: string
+          description: "Optional vehicle types such as \"Express Car, Special Express, Value Taxi\""
+    actions:
+      - condition: "is_car == 'no'"
+        next_step: FP002
+      - condition: "is_car == 'yes'"
+        next_step: FP004
+    response: "Searching for a vehicle based on your provided details."
+
+  - id: FP002
+    prompt: "We couldn't find a vehicle that matches your request. Would you like to re-select?"
+    next_step: FP003
+    actions:
+      - condition: "user_input == 'yes'"
+        next_step: FP001
+
+  - id: FP003
+    prompt: "We apologize, but we were unable to find a suitable vehicle for your request. We are sorry for any inconvenience this may have caused."
+    next_step: null
+
+  - id: FP004
+    prompt: "We have found suitable vehicles for you: {is_form}. Would you like to choose this one?"
+    next_step: FP006
+    actions:
+      - condition: "user_input == 'no'"
+        next_step: FP005
+
+  - id: FP005
+    prompt: "We understand. Please take your time to consider your options. Let us know if you'd like to proceed."
+    next_step: FP004
+
+  - id: FP006
+    tool_call:
+      name: taxiService
+      description: "Whether the order is successful"
+      parameters:
+        people_id:
+          type: string
+          description: "User ID number, 18 digits, e.g. \"510000199806212921\""
+          required: true
+        car_form:
+          type: string
+          description: "The model of the user's choice, e.g. \"Value Taxi\""
+          required: true
+        car_num:
+          type: string
+          description: "License plate tail number, e.g. \"Chongqing A132X2\""
+          required: true
+      output:
+        is_ticket:
+          type: string
+          description: "Whether the order was successfully placed, enumeration type, [successful, unsuccessful]"
+        is_reason:
+          type: string
+          description: "Unsuccessful reasons, e.g. \"The car has already been booked by someone else because the user has not placed an order for a long time\""
+    actions:
+      - condition: "is_ticket == 'successful'"
+        next_step: FP007
+      - condition: "is_ticket == 'unsuccessful'"
+        next_step: FP008
+    response: "Placing your order now."
+
+  - id: FP007
+    prompt: "We are glad you enjoyed our service! Would you be willing to leave a review? Are you satisfied or dissatisfied with your ride?"
+    next_step: FP009
+    actions:
+      - condition: "user_input == 'dissatisfied'"
+        next_step: FP010
+
+  - id: FP008
+    prompt: "Your order was unsuccessful because: {is_reason}. We apologize for the inconvenience."
+    next_step: null
+
+  - id: FP009
+    prompt: "Thank you for choosing our service! We appreciate your business."
+    next_step: null
+
+  - id: FP010
+    prompt: "We are sorry to hear you were dissatisfied. We will make more efforts to improve our service and strive to satisfy you next time."
+    next_step: null

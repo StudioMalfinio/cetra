@@ -1,0 +1,151 @@
+flow:
+  - id: start
+    prompt: "Hello! I am your apartment manager. I can help you find an apartment. What are your specific needs?"
+    next_step: ask_specific_needs
+
+  - id: ask_specific_needs
+    prompt: "Please tell me your requirements for bedrooms, price, floor, elevator, etc."
+    tool_call:
+      name: searchApartment
+      description: "Search for the matching apartment according to the number of bedrooms, price, floor, and whether or not the user needs an elevator"
+      parameters:
+        need_room:
+          type: integer
+          description: "Number of bedrooms required. The default is 1"
+          required: false
+        need_price:
+          type: string
+          description: "Deposit price acceptable to the user, value +yuan, the default \"500 yuan\""
+          required: false
+        need_folor:
+          type: string
+          description: "Which floor does the user want to live on? Default is \"first floor\""
+          required: false
+        is_elevator:
+          type: string
+          description: "Whether an elevator is required. Enumeration type, [Yes, No]. Default is \"Yes\""
+          required: false
+      output:
+        is_find:
+          type: string
+          description: "Whether a suitable apartment can be found, enumeration type, [can be found, cannot be found]"
+        apartment_message:
+          type: object
+          description: "Apartment information sheet. If not, there is no suitable apartment."
+          properties:
+            apartment_position:
+              type: string
+              description: "Location, such as \"Chongqing Guanyinqiao Wuyue International Apartment\""
+            apartment_cool:
+              type: string
+              description: "Availability of air conditioning, enumeration type, [Yes, No]"
+            apartment_refrigerator:
+              type: string
+              description: "Availability of refrigerator, enumeration type, [Yes, No]"
+    response: "Okay, I've searched for apartments based on your criteria. {{is_find}}"
+    next_step: handle_search_results
+
+  - id: handle_search_results
+    actions:
+      - condition: "{{is_find}} == 'cannot be found'"
+        next_step: inform_modify_info
+      - condition: "{{is_find}} == 'can be found'"
+        next_step: inform_apartment
+
+  - id: inform_modify_info
+    prompt: "I couldn't find an apartment that matches your current criteria. Would you be willing to adjust your apartment preferences?"
+    next_step: handle_modify_decision
+
+  - id: handle_modify_decision
+    actions:
+      - condition: "user_input == 'Yes'"
+        next_step: ask_specific_needs
+      - condition: "user_input == 'No'"
+        next_step: apologize
+
+  - id: apologize
+    prompt: "I apologize that we couldn't find a suitable apartment for you. Is there anything else I can help with?"
+    next_step: null
+
+  - id: inform_apartment
+    prompt: "I found an apartment for you at {{apartment_message.apartment_position}}. It has {{apartment_message.apartment_cool}} for air conditioning and {{apartment_message.apartment_refrigerator}} for a refrigerator. Are you satisfied with this apartment?"
+    next_step: handle_satisfaction
+
+  - id: handle_satisfaction
+    actions:
+      - condition: "user_input == 'User is satisfied'"
+        next_step: ask_rent_or_view
+      - condition: "user_input == 'User is not satisfied'"
+        next_step: ask_see_apartment
+
+  - id: ask_see_apartment
+    prompt: "Would you like to see the apartment before making a decision?"
+    next_step: handle_see_decision
+
+  - id: handle_see_decision
+    actions:
+      - condition: "user_input == 'Desire to see'"
+        next_step: confirm_viewing
+      - condition: "user_input == 'No desire to see'"
+        next_step: ask_other_apartments
+
+  - id: confirm_viewing
+    prompt: "Please wait a moment while we confirm the apartment viewing process."
+    next_step: null
+
+  - id: ask_other_apartments
+    prompt: "Would you like to know about other apartments?"
+    next_step: handle_other_apartments_decision
+
+  - id: handle_other_apartments_decision
+    actions:
+      - condition: "user_input == 'User wants to know'"
+        next_step: ask_specific_needs
+      - condition: "user_input == 'User declines to know'"
+        next_step: apologize
+
+  - id: ask_rent_or_view
+    prompt: "Would you like to rent the apartment now or have a look first?"
+    next_step: handle_rent_or_view_decision
+
+  - id: handle_rent_or_view_decision
+    actions:
+      - condition: "user_input == 'Rent Now'"
+        next_step: apartment_signing
+      - condition: "user_input == 'Have a look first'"
+        next_step: confirm_viewing
+
+  - id: apartment_signing
+    tool_call:
+      name: apartmentSigning
+      description: "Determine whether the user has successfully rented the apartment"
+      parameters:
+        is_money:
+          type: string
+          description: "Whether a deposit has been paid. Enumeration type, [Yes, No]. The default is \"No\""
+          required: false
+        is_protocol:
+          type: string
+          description: "Whether an occupancy agreement has been signed. Enumeration type, [Yes, No]. The default is \"No\""
+          required: false
+      output:
+        is_apart:
+          type: string
+          description: "Whether the apartment has been rented. Enumeration type, [successfully rented, unsuccessfully rented]"
+    response: "{{is_apart}}"
+    next_step: handle_rental_result
+
+  - id: handle_rental_result
+    actions:
+      - condition: "{{is_apart}} == 'successfully rented'"
+        next_step: notify_rental_success
+      - condition: "{{is_apart}} == 'unsuccessfully rented'"
+        next_step: inform_deposit
+
+  - id: notify_rental_success
+    prompt: "Congratulations! Your apartment has been successfully rented."
+    next_step: null
+
+  - id: inform_deposit
+    prompt: "The apartment rental has failed. This may be due to an unpaid deposit or an unsigned occupancy agreement. Please complete these steps to proceed."
+    next_step: null

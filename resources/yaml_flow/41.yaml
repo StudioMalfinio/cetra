@@ -1,0 +1,98 @@
+flow:
+  - id: yh000
+    prompt: "Hello! I'm your travel assistant. What can I help you with today? We offer weather services."
+    next_step: yh004
+
+  - id: yh004
+    prompt: "Would you like to check the weather or set up weather reminders?"
+    actions:
+      - condition: "user_input == 'Weather check'"
+        next_step: yh001
+      - condition: "user_input == 'Turn on weather reminders'"
+        next_step: yh005
+
+  - id: yh005
+    prompt: "We provide morning and evening weather reminders, as well as unusual weather alerts. Would you like any of these?"
+    actions:
+      - condition: "user_input == 'Unusual weather reminders'"
+        next_step: yh006
+      - condition: "user_input == 'Morning and evening weather reminders'"
+        next_step: yh007
+
+  - id: yh006
+    prompt: "We will timely detect imminent changes in rainfall and air quality and send you these messages."
+    next_step: yh008
+
+  - id: yh007
+    prompt: "We will send you today's/tomorrow's weather news every day at 7:00 AM and 7:00 PM."
+    next_step: yh008
+
+  - id: yh001
+    tool_call:
+      name: getWeatherForecast
+      description: "Obtain the weather conditions at the pointing time and place based on the acquired geographic location and time range."
+      parameters:
+        user_locate:
+          type: string
+          description: "User's geographical location. The format is: City + District/County + Road name + Road number, such as \"No. 12, Yangliu Road, Wuhou District, Jiang City\""
+          required: true
+        time_array:
+          type: list
+          description: "Time range. If left blank, only weather information for today and tomorrow will be provided, up to a maximum of 7 elements."
+          items:
+            type: string
+            description: "Dates. The format is year + month + day, such as \"January 17, 2048\""
+          required: false
+      output:
+        weather_dict:
+          type: object
+          description: "The weather information sheet will be empty in case of error."
+          properties:
+            date_checked:
+              type: string
+              description: "Dates. The format is year + month + day, such as \"January 17, 2048\""
+            temperature_range:
+              type: string
+              description: "temperature range. The format is minimum temperature~maximum temperature, such as \"17°C~22°C\""
+            weather_info:
+              type: string
+              description: "Weather information, such as \"overcast to cloudy\", \"cloudy\""
+            air_quality:
+              type: integer
+              description: "Air quality. Non-negative integer"
+            meteorological_warning:
+              type: string
+              description: "Weather alerts, null for none"
+        status:
+          type: string
+          description: "Status. Enumerated type, [Normal, Date Error, Geolocation Error]"
+    response: |
+      {% if status == 'Normal' %}
+      The weather data for {user_locate} on {date_checked} is available.
+      The temperature range is {temperature_range}.
+      The weather information is: {weather_info}.
+      Air quality is: {air_quality}.
+      {% if meteorological_warning %}
+      Meteorological warning: {meteorological_warning}.
+      {% endif %}
+      Would you like to check another location or date?
+      {% elif status == 'Date Error' %}
+      I'm sorry, but the date you provided is invalid. Please check the format and try again. Would you like to continue the check?
+      {% elif status == 'Geolocation Error' %}
+      I'm sorry, but I couldn't find weather data for the location you provided. Would you like to continue the check?
+      {% else %}
+      An unexpected error occurred. Would you like to continue the check?
+      {% endif %}
+    actions:
+      - condition: "status == 'Normal' and user_input.lower() == 'yes'"
+        next_step: yh001
+      - condition: "status == 'Normal' and user_input.lower() != 'yes'"
+        next_step: yh008
+      - condition: "status != 'Normal' and user_input.lower() == 'yes'"
+        next_step: yh001
+      - condition: "status != 'Normal' and user_input.lower() != 'yes'"
+        next_step: yh008
+
+  - id: yh008
+    prompt: "Goodbye! Have a great day!"
+    next_step: null

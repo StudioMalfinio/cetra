@@ -1,0 +1,85 @@
+flow:
+  - id: ask_aware
+    prompt: "It looks like there's a record of you leaving early or arriving late today. Are you aware of this?"
+    actions:
+      - condition: "unaware"
+        next_step: inquire_checked_in
+      - condition: "aware"
+        next_step: ask_reason
+
+  - id: inquire_checked_in
+    prompt: "If there's no early leave or tardiness record, it might be due to not checking in. Did you fail to check in at the time clock?"
+    actions:
+      - condition: "did check in"
+        next_step: notify_check_in_failed
+      - condition: "did not check in"
+        next_step: ask_reason
+
+  - id: notify_check_in_failed
+    prompt: "You mentioned you checked in, but we can't find any records. This might be due to an operation error. Please ensure you use the clock-in machine correctly next time."
+    next_step: null
+
+  - id: ask_reason
+    prompt: "What was the reason for the early leave/tardiness? Was it a facial recognition failure, or perhaps you forgot to check in, or something else?"
+    actions:
+      - condition: "face recognition failure"
+        next_step: collect_facial_info
+      - condition: "forgot to check in"
+        next_step: examine_forgetfulness_frequency
+      - condition: "other reasons"
+        next_step: collect_other_reasons
+
+  - id: collect_facial_info
+    tool_call:
+      name: getUserPhoto
+      description: "Get the user photo"
+      parameters:
+        photo_link:
+          type: string
+          description: "Photo link, URL format, e.g. “www.pan123.com/s/code=540e19a9b113934b50e35fcbed384b59”"
+          required: true
+      output:
+        result:
+          type: string
+          description: "Check the result, enumeration type, [true, false], true means the face file was received and the check was successful, false means the file was not received or is not a face file"
+    response: "Thank you for providing your photo. The system indicates your facial verification result is {result}."
+    actions:
+      - condition: "{result} == 'true'"
+        next_step: null # Assuming successful verification ends this specific branch
+      - condition: "{result} == 'false'"
+        next_step: collect_facial_info # Loop back to re-upload as per description
+
+  - id: examine_forgetfulness_frequency
+    tool_call:
+      name: recordForgotPunch
+      description: "Record the number of times the user forgot to check in"
+      parameters:
+        worker_num:
+          type: string
+          description: "Worker number, 3 letters + 3 ~ 4 numbers, such as \"ESE510\""
+          required: true
+      output:
+        back_code:
+          type: string
+          description: "Server returned code, 200 for normal, others for error"
+        forget_num:
+          type: integer
+          description: "Forgot punch times, positive integer, including this time"
+    response: "I've checked your record. You have forgotten to punch in {forget_num} times this month."
+    actions:
+      - condition: "{forget_num} > 3"
+        next_step: inform_excess_tardiness
+      - condition: "{forget_num} <= 3"
+        next_step: remind_timing
+
+  - id: inform_excess_tardiness
+    prompt: "Your tardiness frequency has exceeded three times and has been recorded by the system. Please ensure you are not late again."
+    next_step: null
+
+  - id: remind_timing
+    prompt: "You have not forgotten to punch in more than three times this month. Please remember to check in on time next time."
+    next_step: null
+
+  - id: collect_other_reasons
+    prompt: "Please specify the other reason for your early leave or tardiness."
+    next_step: null

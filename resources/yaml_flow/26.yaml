@@ -1,0 +1,92 @@
+flow:
+  - id: YI000
+    prompt: "Start"
+    next_step: YI001
+
+  - id: YI001
+    prompt: "Current goal: Confirm the user's identity. Ask for the identity of the employee who answered the phone, including name and employee number."
+    tool_call:
+      name: getEmployeeStatus
+      description: "Get the identity of the employee in the current conversation"
+      parameters:
+        sever_ip:
+          type: string
+          description: "Server IP, IPv4 format, for example \"127.0.0.1\". If the function does not return the correct data, can add this parameter and call it again"
+          required: false
+    response: "The employee's name is {employee_name} and their employee number is {employess_num}. Your identity is confirmed."
+    actions:
+      - condition: "employee_name is not null and employess_num is not null"
+        next_step: YI002
+      - condition: "employee_name is null or employess_num is null"
+        next_step: apologize_wrong_identity
+
+  - id: apologize_wrong_identity
+    prompt: "We apologize, but we could not verify your identity. Please contact the document printing person in charge for further assistance."
+    next_step: null
+
+  - id: YI002
+    prompt: "Current goal: Get the result of the file print."
+    tool_call:
+      name: getPrintResults
+      description: "Get the result of the file print"
+      parameters: {}
+      output:
+        is_result:
+          type: string
+          description: "Print result, enumeration type, [Successful application, unsuccessful application]"
+        locations:
+          type: string
+          description: "Storage location, in the format: floor + machine name + machine number, such as \"2nd floor nest No. 2\""
+        pick_up_umber:
+          type: string
+          description: "Pickup number, 8 digits 0~9 digits, such as \"37889172\""
+        page_num:
+          type: integer
+          description: "Number of pages of the document, positive integer"
+    actions:
+      - condition: "is_result == 'Successful application'"
+        next_step: YI008
+      - condition: "is_result == 'unsuccessful application'"
+        next_step: YI004
+
+  - id: YI008
+    prompt: "Current goal: Confirm the number of pages in the document. We need to confirm the number of pages in the file with the user so that we don't give the wrong file and cause information leakage. Query the number of pages of the user's file based on the returned page_num which is one of the returned value of getPrintResults. The user cannot be told the correct answer."
+    actions:
+      - condition: "page_num is correct"
+        next_step: YI003
+      - condition: "page_num is incorrect"
+        next_step: YI007
+
+  - id: YI007
+    prompt: "Current goal: Tell the failure of delivering of the file. Let the user know that the number of pages of the document provided is inconsistent with that of the document is about to be delivered now. Deliveries are not possible in accordance with the Company's regulations. If in doubt, the user can contact the person in charge of document printing for details. If the user knows the answer is incorrect and re-gives the correct answer, documents still cannot be delivered."
+    next_step: null
+
+  - id: YI003
+    prompt: "Subgoal: Ask the user how to get the file. The user can go to the pickup location to pick the file up on his/her own, or it can also be delivered by our staff. The user needs to give clear requirements."
+    actions:
+      - condition: "user wants to pick up on his/her own"
+        next_step: YI005
+      - condition: "user wants delivery by staff"
+        next_step: YI006
+
+  - id: YI005
+    prompt: "Current goal: Inform the pick-up location. Based on the returned getPrintResults, the user is told the location where the file is currently stored and its pickup number is pick_up_umber. The user needs to pick up the file in time."
+    response: "Your file is located at {locations}. Your pickup number is {pick_up_umber}. Please pick up your file in time."
+    next_step: null
+
+  - id: YI006
+    prompt: "Current goal: Collect user workstation locations. Collect the location of the user's workstation and collect the parameter: work_place. Tell the user that the delivery of the document is about to be scheduled and the user needs to wait at the desk. If there is no one at the workstation at the time of delivery, the delivery will not be made."
+    tool_call:
+      name: collect_workplace
+      description: "Collect the user's workstation location"
+      parameters:
+        work_place:
+          type: string
+          description: "工位位置,是一个编号,比如“J810-1-4”、“J809-6-4”"
+          required: true
+    response: "Your document will be delivered to your workstation at {work_place}. Please wait at your desk. If no one is present at the workstation at the time of delivery, the delivery will not be made."
+    next_step: null
+
+  - id: YI004
+    prompt: "Current goal: Inform the reason for the failure of the application. There can be two reasons for the application failure. The first is the file is not up to specification. The second is the file volume is too large. The user can contact the person in charge of document printing to understand the situation and then re-apply."
+    next_step: null

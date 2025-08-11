@@ -1,0 +1,156 @@
+flow:
+  - id: start_attendance_management
+    prompt: "Hello, I can help you with attendance management and shift transfers. What is your employee ID? (e.g., ESE510)"
+    next_step: SA001
+
+  - id: SA001
+    tool_call:
+      name: getUserInfo
+      description: "Obtain user information according to user ID"
+      parameters:
+        worker_num:
+          type: string
+          description: "Employee ID, 3 letters +3~4 numbers, such as \"ESE510\""
+          required: true
+      output:
+        back_code:
+          type: string
+          description: "Server return code, 200 is normal, others are errors. 404 means that no such person has been found"
+        work_num:
+          type: string
+          description: "Station number, 2 letters + 2 numbers + 1 letter + 2 numbers, such as \"CQ-05-C-04\""
+    response: "Checking your identity for employee ID {worker_num}..."
+    actions:
+      - condition: "tool_output.back_code == '200'"
+        next_step: SA002
+      - condition: "tool_output.back_code != '200'"
+        next_step: SA003
+
+  - id: SA002
+    prompt: "Regarding your shift transfer, please tell me the shift time you are referring to. Is it within three days (inclusive) or beyond three days?"
+    actions:
+      - condition: "user_input.lower().includes('within three days') or user_input.lower().includes('in 3 days') or user_input.lower().includes('less than 3 days')"
+        next_step: SA004
+      - condition: "user_input.lower().includes('beyond three days') or user_input.lower().includes('more than 3 days')"
+        next_step: SA005
+      - condition: "true" # Fallback/re-prompt for clarity
+        next_step: SA002
+
+  - id: SA003
+    prompt: "Your identity could not be confirmed. Therefore, your request for a shift transfer is denied."
+    next_step: null
+
+  - id: SA004
+    prompt: "Have you already found a successor for your shift? The successor must be another employee of the same level in the company. If so, please provide their employee ID."
+    actions:
+      - condition: "user_input.lower().includes('no successor') or user_input.lower().includes('no one') or user_input.lower().includes('not yet')"
+        next_step: SA006
+      - condition: "user_input.lower().includes('found successor') or user_input.lower().includes('yes') or user_input.lower().matches('.*[A-Z]{3}\\d{3,4}.*')" # Basic regex to detect an ID
+        next_step: SA007
+      - condition: "true" # Fallback/re-prompt for clarity
+        next_step: SA004
+
+  - id: SA005
+    prompt: "The shift transfer time has exceeded three days. For this, a written application needs to be made by your supervisor."
+    next_step: null
+
+  - id: SA006
+    prompt: "Do you need our help to find an exchangeable shift, or would you prefer to continue looking for a successor on your own?"
+    actions:
+      - condition: "user_input.lower().includes('find on my own') or user_input.lower().includes('myself')"
+        next_step: SA008
+      - condition: "user_input.lower().includes('find here') or user_input.lower().includes('your help') or user_input.lower().includes('yes')"
+        next_step: SA009
+      - condition: "true" # Fallback/re-prompt for clarity
+        next_step: SA006
+
+  - id: SA007
+    tool_call:
+      name: collectShiftInformation
+      description: "Collect shift information"
+      parameters:
+        worker_num:
+          type: string
+          description: "Employee number, 3 letters + 3~4 numbers, such as \"ESE510\""
+          required: true
+        worker_2_num:
+          type: string
+          description: "Successor employee number, 3 letters + 3~4 numbers, such as \"ESE510\""
+          required: true
+    response: "We're processing the shift information with successor {worker_2_num}. Please inform them to contact us for the shift transfer and to fill out the information. Thank you."
+    next_step: null
+
+  - id: SA008
+    prompt: "Alright. Please proceed with finding your successors on your own. Let us know if you need further assistance."
+    next_step: null
+
+  - id: SA009
+    tool_call:
+      name: getCanExchanged
+      description: "Get employee information that can be exchanged"
+      parameters:
+        worker_num:
+          type: string
+          description: "Employee number, 3 letters + 3~4 numbers, such as \"ESE510\""
+          required: true
+        time:
+          type: string
+          description: "Expected time, in the format of \"day + hour ~ day + hour\", such as \"18 o'clock on the 17th ~ 15 o'clock on the 18th\""
+          required: true
+      output:
+        back_code:
+          type: string
+          description: "Server return code, 200 is normal, others are errors"
+        worker_object:
+          type: object
+          description: "A list of feasible employees, an empty one means that there is no feasible one"
+          properties:
+            time:
+              type: string
+              description: "The time that can be exchanged, in the format of \"day + hour ~ day + hour\", such as \"18 o'clock on the 17th ~ 15 o'clock on the 18th\""
+            worker_2_num:
+              type: string
+              description: "Successor employee number, 3 letters + 3~4 numbers, such as \"ESE510\""
+            ding_num:
+              type: string
+              description: "DingTalk number, 8~15 letters and numbers"
+    response: "Searching for exchangeable shifts and employees for {time}..."
+    actions:
+      - condition: "tool_output.worker_object and tool_output.worker_object | length > 0"
+        next_step: SA010
+      - condition: "not tool_output.worker_object or tool_output.worker_object | length == 0"
+        next_step: SA011
+
+  - id: SA010
+    prompt: "We found some potential employees for a shift exchange: {tool_output.worker_object}. Please reach out to them directly using the provided details."
+    next_step: null
+
+  - id: SA011
+    prompt: "We couldn't find any other employees who have posted a matching shift request. Would you like to upload your shift request information? Other employees will then be able to see your application."
+    actions:
+      - condition: "user_input.lower().includes('yes') or user_input.lower().includes('upload')"
+        next_step: SA012
+      - condition: "user_input.lower().includes('no') or user_input.lower().includes('not upload')"
+        next_step: SA013
+      - condition: "true" # Fallback/re-prompt for clarity
+        next_step: SA011
+
+  - id: SA012
+    tool_call:
+      name: uploadUserRequest
+      description: "Upload the user's needs"
+      parameters:
+        worker_num:
+          type: string
+          description: "Employee number, 3 letters + 3~4 numbers, such as \"ESE510\""
+          required: true
+        time:
+          type: string
+          description: "The demand period, the format is \"day + hour ~ day + hour\", such as \"18 o'clock on the 17th ~ 15 o'clock on the 18th\""
+          required: true
+    response: "Your shift request for {time} has been successfully uploaded. Please be patient while we look for a match."
+    next_step: null
+
+  - id: SA013
+    prompt: "We apologize that we couldn't fully assist with your request at this time. Is there anything else I can help with?"
+    next_step: null

@@ -1,0 +1,84 @@
+flow:
+  - id: DM000
+    prompt: "Apartment fee bill inquiry. What is your phone number?"
+    next_step: DM001
+
+  - id: DM001
+    tool_call:
+      name: confirmationIdentity
+      description: "Query the identity information of the user"
+      parameters:
+        person_nums:
+          type: string
+          description: "Mobile phone number, composed of numbers, such as \"13620517842\""
+          required: true
+      output:
+        is_person:
+          type: string
+          description: "Whether the user's identity information can be found, enumeration type, [yes, no]"
+    actions:
+      - condition: "is_person == 'yes'"
+        next_step: DM004
+      - condition: "is_person == 'no'"
+        next_step: DM002
+
+  - id: DM002
+    prompt: "We could not find your identity information. Please confirm if you would like to provide your phone number again?"
+    actions:
+      - condition: "user_response == 'yes'"
+        next_step: DM001
+      - condition: "user_response == 'no'"
+        next_step: DM003
+
+  - id: DM003
+    prompt: "We are unable to conduct the inquiry at this time. Is there anything else I can help you with?"
+    next_step: null
+
+  - id: DM004
+    prompt: "What date would you like to check the bill for?"
+    next_step: DM004_call
+
+  - id: DM004_call
+    tool_call:
+      name: billingInquiry
+      description: "Billing Inquiry, the completed payment of the apartment fee, can be found in the bill"
+      parameters:
+        person_phone:
+          type: string
+          description: "Mobile phone number, composed of numbers, such as \"13620517842\""
+          required: true
+        person_date:
+          type: string
+          description: "The billing date to be queried, year + month + day, e.g. \"February 21, 2050\""
+          required: true
+      output:
+        is_find:
+          type: string
+          description: "Whether the billing information can be found, enumeration type, [can be found, cannot be found]"
+        is_message:
+          type: object
+          description: "The billing information form, is blank if the apartment has not been paid"
+          properties:
+            is_fees:
+              type: string
+              description: "Fees paid, e.g. \"50 Yuan\""
+            is_place:
+              type: string
+              description: "Charge items, such as \"electricity\""
+    actions:
+      - condition: "is_find == 'can be found'"
+        next_step: DM006
+      - condition: "is_find == 'cannot be found'"
+        next_step: DM005
+
+  - id: DM005
+    prompt: "We could not find billing information for that date. It's possible you didn't pay the apartment fee on that date. Would you like to try a different date?"
+    actions:
+      - condition: "user_response == 'yes'"
+        next_step: DM004
+      - condition: "user_response == 'no'"
+        next_step: DM003
+
+  - id: DM006
+    prompt: "Your billing information is as follows: Fees paid: {is_message.is_fees}, Charge item: {is_message.is_place}. Is there anything else I can help you with?"
+    next_step: null

@@ -1,0 +1,64 @@
+flow:
+  - id: SO000
+    prompt: "Welcome to our Moving Service! Let's get started with your reservation."
+    next_step: SO001
+  - id: SO001
+    prompt: "To confirm, is the destination of your move within the same city as the origin? Please answer 'Yes' or 'No'."
+    actions:
+      - condition: "user_input == 'Yes'"
+        next_step: SO003
+      - condition: "user_input == 'No'"
+        next_step: SO002
+  - id: SO002
+    prompt: "Our moving service currently only supports same-city moves. Would you like to adjust your destination to a same-city location?"
+    actions:
+      - condition: "user_input == 'Need to change'"
+        next_step: SO003
+      - condition: "user_input == 'Do not need to change'"
+        next_step: SO004
+  - id: SO003
+    prompt: "Please provide the origin and destination for your move. I will then verify the moving fee."
+    tool_call:
+      name: receiveMoveInfo
+      description: "Verify the moving fee."
+      parameters:
+        start_position:
+          type: string
+          description: "Start position, for example, \"Fuxin Apartment, Guanyinqiao, Chongqing\""
+          required: true
+        end_position:
+          type: string
+          description: "End position, for example, \"Chongqing Jiefangbei Starlight Times Apartment\""
+          required: true
+    response: "The moving fee for your move from {start_position} to {end_position} is {moving_fee}. Do you accept this fee?"
+    next_step: SO006
+  - id: SO004
+    prompt: "Thank you for contacting us. Goodbye!"
+    next_step: null
+  - id: SO005
+    prompt: "Great! Your moving service will be carried out at the confirmed time."
+    next_step: null
+  - id: SO006
+    prompt: "What is your desired moving time? Please specify the year, month, and day (e.g., 'March 16, 2025')."
+    tool_call:
+      name: addPackingFee
+      description: "Verify if moving time is feasible."
+      parameters:
+        moving_time:
+          type: string
+          description: "Moving time, year + month + day, e.g. \"March 16, 2025\""
+          required: true
+    response: |
+      {% if is_moving == 'feasible' %}
+      Your preferred moving time is feasible.
+      {% else %}
+      Unfortunately, the moving time you selected is not within our working hours.
+      {% endif %}
+    actions:
+      - condition: "is_moving == 'feasible'"
+        next_step: SO005
+      - condition: "is_moving == 'not feasible'"
+        next_step: SO007
+  - id: SO007
+    prompt: "Please choose a different moving time."
+    next_step: SO006

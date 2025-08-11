@@ -1,0 +1,113 @@
+flow:
+  - id: WB000
+    prompt: "Welcome! What is the restaurant name, number of people, and desired reservation time?"
+    next_step: WB001
+
+  - id: WB001
+    tool_call:
+      name: checkRestaurantAvailability
+      description: "Check the availability of a restaurant at the specified time and for the given number of guests."
+      parameters:
+        restaurant_name:
+          type: string
+          description: "The name of the restaurant to book. The format should be: Province/City+District/County+Specific Store Name+Street, such as \"Chongqing Yubei\"."
+          required: true
+        reservation_time:
+          type: string
+          description: "The desired time for the reservation. The format is day + hour, such as \"17:00 on the 19th\"."
+          required: true
+        number_of_guests:
+          type: integer
+          description: "The number of guests for the reservation. A positive integer, the child counts as one."
+          required: true
+      output:
+        available:
+          type: string
+          description: "Indicates whether the restaurant can accommodate the number of guests at the specified time. Enumeration type, [true, false]"
+    actions:
+      - condition: "available == 'true'"
+        next_step: WB002
+      - condition: "available == 'false'"
+        next_step: WB004
+      - condition: "restaurant_name is not provided or restaurant is closed"
+        next_step: WB007
+
+  - id: WB002
+    prompt: "The reservation is available. Please provide your contact information and any special requests."
+    next_step: WB003
+
+  - id: WB003
+    tool_call:
+      name: bookRestaurant
+      description: "Books a table at the restaurant for the specified number of guests after verifying availability and receiving the user's contact information and special requests."
+      parameters:
+        restaurant_name:
+          type: string
+          description: "The name of the restaurant to book. The format should be: Province/City+District/County+Specific Store Name+Street, such as \"Chongqing Yubei\"."
+          required: true
+        reservation_time:
+          type: string
+          description: "The desired time for the reservation. The format is day + hour, such as \"17:00 on the 19th\"."
+          required: true
+        number_of_guests:
+          type: integer
+          description: "The number of guests for the reservation. A positive integer, the child counts as one."
+          required: true
+        contact_information:
+          type: string
+          description: "Contact information for the user making the reservation. Phone number and email address, for example, \"13829102291\" or \"contact@qq.com\""
+          required: true
+        special_requests:
+          type: string
+          description: "Any special requests for the reservation. For example, \"There are two children.\""
+          required: false
+      output:
+        reservation_successful:
+          type: string
+          description: "Indicates whether the restaurant reservation was successful or not. Enumeration type, [true, false]"
+        reservation_details:
+          type: object
+          description: "The details of the successful reservation, if applicable."
+          properties:
+            reservation_id:
+              type: string
+              description: "A unique identifier for the reservation.UUID, for example, fd7174ea-bd74-6864-d96f-25bc924b0f71\""
+            table_number:
+              type: string
+              description: "The table number assigned for the reservation."
+            confirmation_link:
+              type: string
+              description: "A link to view or confirm the reservation online.URL, for example, \"http://alipay.com/s/code=c348c1794df04a0473a11234389e74a236833822\"."
+    actions:
+      - condition: "reservation_successful == 'true'"
+        next_step: WB003_success
+      - condition: "reservation_successful == 'false'"
+        next_step: WB005
+
+  - id: WB003_success
+    prompt: "Your reservation is successful! Your booking details are: Reservation ID: {reservation_id}, Table Number: {table_number}. Please come to the restaurant at the reserved time. If you do not arrive within 20 minutes of the reservation time, your reservation will be forfeited."
+    next_step: null
+
+  - id: WB004
+    prompt: "Apologies, the reservation is not available at the requested time. Would you like to choose a different time?"
+    actions:
+      - condition: "user_choice == 'Yes'"
+        next_step: WB008
+      - condition: "user_choice == 'No'"
+        next_step: WB006
+
+  - id: WB005
+    prompt: "The reservation failed, possibly due to incorrect contact information. Please check your contact information and try again."
+    next_step: WB002
+
+  - id: WB006
+    prompt: "Thank you for your understanding. Please provide a new reservation time and we will check availability again."
+    next_step: WB001
+
+  - id: WB007
+    prompt: "We could not make the reservation because the restaurant name was incorrect or the restaurant is closed at the requested time. Please re-supply the restaurant name, number of people, and desired reservation time."
+    next_step: WB001
+
+  - id: WB008
+    prompt: "We apologize that we could not fulfill your reservation request. Goodbye!"
+    next_step: null

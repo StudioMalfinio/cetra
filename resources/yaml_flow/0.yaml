@@ -1,0 +1,139 @@
+flow:
+  - id: start
+    prompt: "What is your ID number and the email address you want to use?"
+    next_step: account_inquiry
+
+  - id: account_inquiry
+    tool_call:
+      name: accountInquiry
+      description: "Check whether the user has an email account"
+      parameters:
+        person_id:
+          type: string
+          description: "ID number, 18 digits, e.g. \"4300001979912125421\""
+          required: true
+        post_form:
+          type: string
+          description: "Email type, e.g.“Tencent Mail”"
+          required: true
+      output:
+        is_post:
+          type: string
+          description: "Is there a mailbox, enumeration type, [yes, no]"
+    response: |
+      {% if is_post == "yes" %}
+      I see you have an email account.
+      {% else %}
+      You do not have an email account, please register first. After registration is complete, you can log in and use the mailbox to send emails.
+      {% endif %}
+    actions:
+      - condition: "is_post == 'yes'"
+        next_step: inquire_mail
+      - condition: "is_post == 'no'"
+        next_step: registration_required
+
+  - id: registration_required
+    prompt: "Since you do not have an email account, you need to register first. After registration is complete, login, and then the mailbox can be used to send emails."
+    next_step: null
+
+  - id: inquire_mail
+    prompt: "Please provide the sender and the email sending time."
+    next_step: inquire_mail_tool
+
+  - id: inquire_mail_tool
+    tool_call:
+      name: inquireMail
+      description: "Query for a specified message"
+      parameters:
+        post_own:
+          type: string
+          description: "Sender, e.g. \"Wang Wu\""
+          required: true
+        post_time:
+          type: string
+          description: "Email sent time, year + month + day, e.g. \"March 12, 2050\""
+          required: true
+      output:
+        is_found:
+          type: string
+          description: "Whether the email can be found, enumeration type, [Yes, no]"
+    response: |
+      {% if is_found == "Yes" %}
+      I have found the email.
+      {% else %}
+      I could not find the email.
+      {% endif %}
+    actions:
+      - condition: "is_found == 'Yes'"
+        next_step: ask_reply_now
+      - condition: "is_found == 'no'"
+        next_step: inform_not_found
+
+  - id: inform_not_found
+    prompt: "I could not find the email. Can you provide the email information again?"
+    actions:
+      - condition: "user_input == 'Cannot provide again'"
+        next_step: inform_could_not_find
+      - condition: "user_input == 'Can provide again'"
+        next_step: inquire_mail
+
+  - id: inform_could_not_find
+    prompt: "I am sorry, but I could not find the email with the information provided."
+    next_step: null
+
+  - id: ask_reply_now
+    prompt: "Do you want to reply now or later?"
+    next_step: email_response
+
+  - id: email_response
+    tool_call:
+      name: EmailRespnse
+      description: "Edit the content of the reply"
+      parameters:
+        post_theme:
+          type: string
+          description: "Message subject, such as \"Daily Report\""
+          required: true
+        post_thing:
+          type: string
+          description: "The content of the email, e.g. \"100 pieces of data were inspected today\""
+          required: true
+      output:
+        is_thing:
+          type: string
+          description: "Edited email message, e.g. \"Hello, this is today's daily report: there is no annotation today, but 100 pieces of data have been checked\""
+    response: |
+      {% if user_input == "Reply now" %}
+      I will help you reply now.
+      {% else %}
+      Please contact us if you need to reply to an email.
+      {% endif %}
+    actions:
+      - condition: "user_input == 'Reply now'"
+        next_step: send_email
+      - condition: "user_input == 'Reply later'"
+        next_step: reply_later_info
+
+  - id: send_email
+    tool_call:
+      name: sendEmail
+      description: "Send email"
+      parameters:
+        post_one:
+          type: string
+          description: "Sender mailbox, e.g. \"2320@163.com\""
+          required: true
+        post_two:
+          type: string
+          description: "Recipient mailbox, e.g. \"923823@163.com\""
+          required: true
+      output:
+        is_support:
+          type: string
+          description: "Server return code, 200 is normal, others are errors"
+    response: "The email has been successfully replied to."
+    next_step: null
+
+  - id: reply_later_info
+    prompt: "Please contact us if you need to reply to an email."
+    next_step: null

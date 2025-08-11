@@ -1,0 +1,96 @@
+flow:
+  - id: DJ000
+    prompt: "Welcome to the substitute driving platform. How can I help you today? Are you looking to cancel an appointment?"
+    next_step: DJ001
+
+  - id: DJ001
+    prompt: "To help me find your reservation, please provide your ID number and the specific time of your appointment."
+    tool_call:
+      name: getReservation
+      description: "Inquire about reservation information"
+      parameters:
+        person_id:
+          type: string
+          description: "User ID number, 18 digits, default \"510000199312122921\""
+          required: true
+        atten_time:
+          type: string
+          description: "The specific time of the appointment, year + month + day + hour + minute, the default is \"February 28, 2030 at 10:50\""
+          required: true
+    actions:
+      - condition: "is_founding == 'found'"
+        next_step: DJ007
+      - condition: "is_founding == 'not found'"
+        next_step: DJ002
+
+  - id: DJ002
+    prompt: "I could not find your reservation information. Would you like to make an appointment or try looking it up again?"
+    actions:
+      - condition: "user_response == 'make an appointment'"
+        next_step: DJ003
+      - condition: "user_response == 'look it up again'"
+        next_step: DJ001
+      - condition: "user_response == 'neither'"
+        next_step: DJ004
+
+  - id: DJ003
+    prompt: "A dedicated staff member will contact you shortly to assist you with making an appointment. Is there anything else I can help you with today?"
+    next_step: DJ004
+
+  - id: DJ004
+    prompt: "Thank you for contacting us. We hope to hear from you again soon. Goodbye!"
+    next_step: null
+
+  - id: DJ007
+    prompt: "I found your reservation. Are you sure you want to cancel it?"
+    actions:
+      - condition: "user_response == 'no'"
+        next_step: DJ009
+      - condition: "user_response == 'yes'"
+        next_step: DJ005
+
+  - id: DJ009
+    prompt: "Please consider carefully before cancelling. If you are sure, please confirm again."
+    next_step: DJ007
+
+  - id: DJ005
+    prompt: "Please provide your user name and car license plate number for cancellation."
+    tool_call:
+      name: cancelReservation
+      description: "Determine if the reservation can be successfully cancelled"
+      parameters:
+        people_id:
+          type: string
+          description: "User ID number, 18 digits, default \"510000199806212921\""
+          required: true
+        person_names:
+          type: string
+          description: "User name, default \"Wang Lin\""
+          required: true
+        car_num:
+          type: string
+          description: "License plate tail number, default \"Chongqing A132X2\""
+          required: true
+    response: |
+      {% if is_quit == 'Yes' %}
+      Your cancellation is successful.
+      {% else %}
+      Your cancellation was unsuccessful. Reason: {{ is_reason }}
+      {% endif %}
+    actions:
+      - condition: "is_quit == 'Yes'"
+        next_step: DJ006
+      - condition: "is_quit == 'No'"
+        next_step: DJ008
+
+  - id: DJ006
+    prompt: "Your appointment has been successfully cancelled. Is there anything else I can help you with?"
+    next_step: DJ004
+
+  - id: DJ008
+    prompt: "We could not cancel your appointment. The reason is: {{ is_reason }}. Would you like to try again or make a new appointment?"
+    actions:
+      - condition: "user_response == 'try again'"
+        next_step: DJ001
+      - condition: "user_response == 'make a new appointment'"
+        next_step: DJ003

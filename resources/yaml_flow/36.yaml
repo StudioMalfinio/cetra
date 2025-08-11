@@ -1,0 +1,127 @@
+flow:
+  - id: start
+    prompt: "Hello! I am your digital doctor. I can help you make an appointment. Do you know the doctor you want to see, the appointment time, and if they are available?"
+    next_step: ask_doctor_availability
+
+  - id: ask_doctor_availability
+    prompt: "Please let me know if you know your desired doctor, the appointment time, and the doctor's availability. You can tell me the doctor's name and the time, or if you don't know, I can help you find a doctor."
+    actions:
+      - condition: "user_input contains 'I know the doctor and time'"
+        next_step: register_appointment
+      - condition: "user_input contains 'I don't know the doctor's availability'"
+        next_step: judge_doctor_stime
+      - condition: "user_input contains 'I don't have a desired doctor'"
+        next_step: find_doctor
+
+  - id: judge_doctor_stime
+    tool_call:
+      name: JudgeDoctorSTime
+      description: "Confirm the availability of the corresponding doctor at the scheduled time"
+      parameters:
+        doctor_name:
+          type: string
+          description: "Doctor's name, full name"
+          required: true
+        planned_time:
+          type: string
+          description: "Scheduled time. The format is \"day+hour+minute\", such as \"09:15 on the 19th\""
+          required: true
+      output:
+        if_feasible:
+          type: string
+          description: "Availability of doctors. Enumeration type, [available, unavailable]"
+
+    response: |
+      {% if if_feasible == 'available' %}
+      The doctor is available at your requested time. Would you like to continue with the appointment or check another doctor?
+      {% else %}
+      The doctor is unavailable at your requested time. Please choose another doctor.
+      {% endif %}
+    actions:
+      - condition: "if_feasible == 'available'"
+        next_step: continue_appointment_or_another_doctor
+      - condition: "if_feasible == 'unavailable'"
+        next_step: ask_another_doctor
+
+  - id: continue_appointment_or_another_doctor
+    prompt: "Please specify if you want to continue with the appointment or check another doctor."
+    actions:
+      - condition: "user_input contains 'continue'"
+        next_step: register_appointment
+      - condition: "user_input contains 'another doctor'"
+        next_step: ask_another_doctor
+
+  - id: find_doctor
+    tool_call:
+      name: findDoctor
+      description: "Check available doctors based on the time and department being queried."
+      parameters:
+        department_name:
+          type: string
+          description: "Department name, such as \"Obstetrics and Gynecology\", \"Otorhinolaryngology\", \"Dermatology\""
+          required: true
+        planned_time:
+          type: string
+          description: "Scheduled time. The format is \"day+hour+minute\", such as \"09:15 on the 19th\""
+          required: true
+      output:
+        doctor_list:
+          type: string
+          description: "The list of available doctors. If it is empty, it means that the doctor is busy at the time of the query."
+
+    response: "The available doctors in that department at your requested time are: {doctor_list}. Please choose one or ask to search again."
+    next_step: ask_chosen_doctor_or_search_again
+
+  - id: ask_chosen_doctor_or_search_again
+    prompt: "Please choose a doctor from the list or let me know if you'd like to search again."
+    actions:
+      - condition: "user_input contains 'search again'"
+        next_step: find_doctor
+      - condition: "user_input contains doctor name"
+        next_step: register_appointment
+
+  - id: register_appointment
+    tool_call:
+      name: appointmentRegister
+      description: "Make an appointment with the corresponding doctor"
+      parameters:
+        doctor_name:
+          type: string
+          description: "Doctor's name, full name"
+          required: true
+        planned_time:
+          type: string
+          description: "Scheduled time. The format is \"day+hour+minute\", such as \"09:15 on the 19th\""
+          required: true
+        id_number:
+          type: string
+          description: "Patient number. It can be an ID number or a hospital card number. The hospital card number is 13 digits (ordinary card) or VIP + one digit (VIP level) + 5 digits (VIP card)"
+          required: true
+        user_name:
+          type: string
+          description: "Patient name, full name"
+          required: true
+      output:
+        if_success:
+          type: string
+          description: "Successful or not. If it succeeds, it is \"success\". If it fails, it is the reason for the failure, such as \"Doctor unavailable\", \"Doctor does not exist\", and \"Card number does not exist\"."
+
+    response: |
+      {% if if_success == 'success' %}
+      Your appointment is confirmed. Please come to the hospital 15 minutes in advance to pay the registration fee.
+      {% else %}
+      Your appointment could not be made. The reason is: {if_success}.
+      {% endif %}
+    next_step: end
+
+  - id: ask_another_doctor
+    prompt: "Please tell me which other doctor you would like to see or if you would like me to find doctors for you."
+    actions:
+      - condition: "user_input contains 'find doctors for me'"
+        next_step: find_doctor
+      - condition: "user_input contains doctor name"
+        next_step: judge_doctor_stime
+
+  - id: end
+    prompt: "Is there anything else I can help you with today?"
+    next_step: null

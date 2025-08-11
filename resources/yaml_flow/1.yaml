@@ -1,0 +1,124 @@
+flow:
+  - id: NI000
+    prompt: "Start. Please provide your ID number and the email address you want to use."
+    next_step: NI001
+
+  - id: NI001
+    tool_call:
+      name: accountInquiry
+      description: "Query whether the user has an email account"
+      parameters:
+        person_card:
+          type: string
+          description: "Id number, 18 digits, for example, \"430000200201125421\""
+          required: true
+        post_forms:
+          type: string
+          description: "Email type, such as \"NetEase Email\""
+          required: true
+      output:
+        is_posts:
+          type: string
+          description: "Whether there is a mailbox, enumeration type, [yes, no]"
+    actions:
+      - condition: "is_posts == 'yes'"
+        next_step: NI003
+      - condition: "is_posts == 'no'"
+        next_step: NI002
+
+  - id: NI002
+    prompt: "You do not have an email account. Please register first. After registration is complete, login, and then the mailbox can be used to send emails."
+    next_step: null
+
+  - id: NI003
+    prompt: "Please provide the recipient's email account. I will check if emails can be sent to them."
+    next_step: NI003_check
+
+  - id: NI003_check
+    tool_call:
+      name: emailFeasibility
+      description: "Determine whether the recipient's email address is feasible"
+      parameters:
+        post_amount:
+          type: string
+          description: "Recipient email, for example, \"123213@163.com\""
+          required: true
+      output:
+        is_sent:
+          type: string
+          description: "Whether the message can be sent, enumeration type, [no, yes]"
+    actions:
+      - condition: "is_sent == 'no'"
+        next_step: NI004
+      - condition: "is_sent == 'yes'"
+        next_step: NI006
+
+  - id: NI004
+    prompt: "The recipient's email account is incorrect, so the email cannot be sent. Are you willing to provide the recipient's email account again?"
+    actions:
+      - condition: "user_response == 'yes'"
+        next_step: NI003
+      - condition: "user_response == 'no'"
+        next_step: NI005
+
+  - id: NI005
+    prompt: "Goodbye."
+    next_step: null
+
+  - id: NI006
+    prompt: "Please confirm the subject and outline of the email. Do you want to send the email now or later?"
+    actions:
+      - condition: "user_response == 'now'"
+        next_step: NI008
+      - condition: "user_response == 'later'"
+        next_step: NI007
+
+  - id: NI007
+    prompt: "You can store your email content in the draft box. When you edit an email next time, the contents of the draft box can be used directly. Do you want to use the draft box?"
+    actions:
+      - condition: "user_response == 'yes'"
+        next_step: NI009
+      - condition: "user_response == 'no'"
+        next_step: NI005
+
+  - id: NI008
+    prompt: "I will now send the email. Please provide the sender's email and the recipient's email."
+    tool_call:
+      name: enterEmai
+      description: "Send an email"
+      parameters:
+        post_own:
+          type: string
+          description: "Sender email, for example, \"1300@163.com\""
+          required: true
+        post_other:
+          type: string
+          description: "Recipient email, for example, \"234823@163.com\""
+          required: true
+      output:
+        is_support:
+          type: string
+          description: "Server return code, 200 is normal, others are errors"
+    response: "The message has been sent."
+    next_step: null
+
+  - id: NI009
+    prompt: "Please provide your email account and the editing time (year + month + day + hour + minute)."
+    tool_call:
+      name: draftBox
+      description: "Store the edited content in the draft box"
+      parameters:
+        post_name:
+          type: string
+          description: "Email account, such as \"212321@163.com\""
+          required: true
+        start_name:
+          type: string
+          description: "Editing time, year + month + day + hour + minute, e.g. \"12:30 on February 21, 2050\""
+          required: true
+      output:
+        is_success:
+          type: string
+          description: "Server return code, 200 is normal, others are errors"
+    response: "The edited information has been stored in the draft box."
+    next_step: null

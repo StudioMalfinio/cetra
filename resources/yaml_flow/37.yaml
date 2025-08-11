@@ -1,0 +1,106 @@
+flow:
+  - id: start_diagnosis
+    prompt: "Welcome to Digital Doctor. To check your medical progress, please provide your patient ID/hospital card number and full name."
+    next_step: get_medical_info
+
+  - id: get_medical_info
+    tool_call:
+      name: getMedical
+      description: "Access to doctors' diagnostic records"
+      parameters:
+        id_number:
+          type: string
+          description: "Patient number. It can be an ID number or a hospital card number."
+          required: true
+        user_name:
+          type: string
+          description: "Patient name, full name"
+          required: true
+        query_data:
+          type: string
+          description: "Query date. The format is \"year + month + day\". For example, \"November 8, 2044\". If not filled in, it will default to today."
+          required: false
+      output:
+        doctor_name:
+          type: string
+          description: "Doctor's name, full name from diagnostic records."
+        is_check:
+          type: string
+          description: "Diagnostic information. Enumeration type, [Not yet diagnosed, requires medication, hospitalization, no treatment needed]"
+        department_name:
+          type: string
+          description: "Department name, such as \"Obstetrics and Gynecology\", \"Otorhinolaryngology\", \"Dermatology\""
+        purchase_medication:
+          type: array
+          description: "Medication information. Being empty means no medication is prescribed"
+          items:
+            type: string
+            description: "Medication names, such as \"Tylenol\", \"White plus black\", \"Amoxicillin\", etc."
+    response: "Fetching your medical records for {user_name} with ID {id_number}..."
+    actions:
+      - condition: 'get_medical_info.output.is_check == "Not yet diagnosed"'
+        next_step: not_diagnosed_yet
+      - condition: 'get_medical_info.output.is_check != "Not yet diagnosed"'
+        next_step: diagnosis_issued_branch
+
+  - id: not_diagnosed_yet
+    prompt: "The doctor has not issued a diagnosis yet. Please wait for a while before checking again. If the diagnosis has not been made for a long time, please contact your doctor for another appointment."
+    next_step: end_service
+
+  - id: diagnosis_issued_branch
+    prompt: "The doctor has issued a diagnosis: {get_medical_info.output.is_check}. Based on this, we can proceed."
+    actions:
+      - condition: 'get_medical_info.output.is_check == "requires medication"'
+        next_step: medication_info
+      - condition: 'get_medical_info.output.is_check == "hospitalization"'
+        next_step: hospitalization_info
+      - condition: 'get_medical_info.output.is_check == "no treatment needed"'
+        next_step: no_treatment_advice
+      - condition: 'True' # Fallback for unexpected diagnosis or agent decision
+        next_step: end_service
+
+  - id: medication_info
+    prompt: "The doctor has prescribed the following medications: {get_medical_info.output.purchase_medication | join(', ')}. Would you like to make a quick purchase using your bound account? (Say 'yes' for quick purchase or 'no' to pay at the hospital)"
+    actions:
+      - condition: 'user_input.lower() == "yes" or "quick purchase" in user_input.lower()'
+        next_step: order_medication_call
+      - condition: 'user_input.lower() == "no" or "hospital" in user_input.lower() or "pay" in user_input.lower()'
+        next_step: pay_at_hospital
+      - condition: 'True' # Fallback for unclear user input
+        next_step: end_service
+
+  - id: order_medication_call
+    tool_call:
+      name: orderMedication
+      description: "Order medication using a user-bound account"
+      parameters:
+        access_to_medicine:
+          type: string
+          description: "Access to medication. Enumeration type, [Hospital pickup, delivery, takeout]"
+          required: true
+        place_receipt:
+          type: string
+          description: "Delivery address. The format is: City + District/County + Road name + Road number + Community name + Building number + Floor number + Household number, for example, \"No. 10, Floor 6, Building 2, Mingzhu Garden, No. 16 Fengshu Road, Haizhu District, Yang City\". Any modifications need to be filled out. If there are no modifications, the system will access the user's bound address."
+          required: false
+      output:
+        result_text:
+          type: string
+          description: "Results information. If it is a failure, it is the specific reason, such as \"Insufficient balance\" or \"Wrong address\". If it is a success, the hospital will use the medicine pickup window, such as \"001\". If it is other ways, it is the order link. For example \"medic.com/s/code=ea516d699ebfbe1ba90cdb26d7dade6551ba4d73\""
+    response: "Your medication order result: {order_medication_call.output.result_text}. Please proceed accordingly."
+    next_step: end_service
+
+  - id: pay_at_hospital
+    prompt: "Please proceed to the hospital charge office to pay for your medication, then pick up the medicine according to the charge sheet."
+    next_step: end_service
+
+  - id: hospitalization_info
+    prompt: "You need hospitalization. Please go to the front desk of the corresponding department to make a record. Specific information will be provided by the front desk."
+    next_step: end_service
+
+  - id: no_treatment_advice
+    prompt: "You are diagnosed with no need for treatment. Please relax. If you have any doubts, you can consider going to a larger hospital or seeking psychological consultation."
+    next_step: end_service
+
+  - id: end_service
+    prompt: "Is there anything else I can help you with today?"
+    next_step: null

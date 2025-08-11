@@ -1,0 +1,93 @@
+flow:
+  - id: AX000
+    prompt: "Start"
+    next_step: AX001
+
+  - id: AX001
+    prompt: "Are you Mr. Wang Zhenyan?"
+    actions:
+      - condition: "user_input == 'NO'"
+        next_step: AX002
+      - condition: "user_input == 'Yes'"
+        next_step: AX003
+
+  - id: AX002
+    prompt: "Apologize to the user and inform that there is a wrong call."
+    next_step: AX005
+
+  - id: AX003
+    prompt: "Mr. Wang, this is Mr. Rice. Recently there was a promotion where all dishes were 6% off. Do you have time to come?"
+    actions:
+      - condition: "user_input == 'Have no time'"
+        next_step: AX004
+      - condition: "user_input == 'Have time'"
+        next_step: AX006
+
+  - id: AX004
+    prompt: "This promotion starts next Monday and ends next Sunday. Would you like to come over if you have time?"
+    actions:
+      - condition: "user_input == 'Still have no time'"
+        next_step: AX005
+      - condition: "user_input == 'Have time'"
+        next_step: AX006
+
+  - id: AX005
+    prompt: "Sorry to trouble you."
+    next_step: null
+
+  - id: AX006
+    prompt: "This time, you need to make an appointment in advance. After making an appointment, there's no need to queue up to participate in the promotion. Do you need to make an appointment?"
+    actions:
+      - condition: "user_input == 'Need an appointment'"
+        next_step: AX007
+      - condition: "user_input == 'Need no appointment'"
+        next_step: AX009
+
+  - id: AX007
+    prompt: "Do you want to make an appointment now or later?"
+    actions:
+      - condition: "user_input == 'Make an appointment now'"
+        next_step: AX010
+      - condition: "user_input == 'Make an appointment later'"
+        next_step: AX008
+
+  - id: AX008
+    prompt: "If you want to make an appointment, please contact us by the following Monday."
+    next_step: null
+
+  - id: AX009
+    prompt: "You can queue up to participate in the promotion."
+    next_step: null
+
+  - id: AX010
+    tool_call:
+      name: userReservation
+      description: "Determine whether the appointment is successful"
+      parameters:
+        person_nums:
+          type: string
+          description: "User ID number, 18 digits, e.g. \"510000200512122921\""
+          required: true
+        person_name:
+          type: string
+          description: "Username, e.g. \"Zheng Yuan\""
+          required: true
+      output:
+        is_reserce:
+          type: string
+          description: "Whether the appointment was successful, enumeration type, [Yes, No]"
+    actions:
+      - condition: "is_reserce == 'Yes'"
+        next_step: AX011
+      - condition: "is_reserce == 'No'"
+        next_step: AX012
+
+  - id: AX011
+    prompt: "Your appointment was successful."
+    next_step: null
+
+  - id: AX012
+    prompt: "The appointment was not successful. There may be errors in the ID number and name. Please provide the ID number and name again."
+    actions:
+      - condition: "user_input == 'Reprovide'"
+        next_step: AX010

@@ -1,0 +1,107 @@
+flow:
+  - id: start
+    prompt: "Welcome to the Apartment Manager. Let's find your perfect apartment."
+    next_step: ask_satisfied_flat
+
+  - id: ask_satisfied_flat
+    prompt: "Do you already have a satisfied flat?"
+    actions:
+      - condition: "user_input == 'NO'"
+        next_step: conduct_apartment_search
+      - condition: "user_input == 'Yes'"
+        next_step: verify_room_info_prompt
+
+  - id: conduct_apartment_search
+    prompt: "Please conduct an apartment search and then schedule a viewing. Let me know when you're ready."
+    next_step: verify_room_info_prompt
+
+  - id: verify_room_info_prompt
+    prompt: "Please provide the room number, community name, and floor you are interested in to verify the room information."
+    next_step: get_room_info
+
+  - id: get_room_info
+    tool_call:
+      name: getRoomInfo
+      description: "Get room information and salesman information"
+      parameters:
+        room_num:
+          type: string
+          description: "Room number being queried, zip code + \"-\" + room number, such as \"400000-012893\""
+          required: true
+        cell_name:
+          type: string
+          description: "Community name, such as \"Phoenix City\", and \"Mountain Xianju\", recording the room number being queried simply"
+          required: false
+        floor:
+          type: string
+          description: "Floor number, such as \"B1\", \"B5\", and \"13\". Only the queried room number can be written"
+          required: false
+      output:
+        room_info_dict:
+          type: string
+          description: "Housing information, empty means not found"
+    actions:
+      - condition: "room_info_dict is not empty and room_num is provided by user"
+        next_step: confirm_room_number
+      - condition: "room_info_dict is empty or room_num is not provided by user"
+        next_step: conduct_apartment_search
+
+  - id: confirm_room_number
+    prompt: "The room number {room_num} has been confirmed. Now, let's confirm the viewing times."
+    next_step: fix_viewing_time
+
+  - id: fix_viewing_time
+    prompt: "Please provide your preferred viewing times. If no preference, I will suggest the nearest available time."
+    tool_call:
+      name: fixTime
+      description: "Determine the viewing time"
+      parameters:
+        room_num:
+          type: string
+          description: "House number, zip code + \"-\" + room number, such as \"400000-012893\""
+          required: true
+        time_list:
+          type: list
+          description: "List of expected house viewing times. If not written, the nearest feasible time will be recommended"
+          items:
+            type: string
+            description: "Time, format: day+hour+minute. such as \"17th 12:28\", and \"31st 11:00\""
+          required: false
+      output:
+        observable_time:
+          type: list
+          description: "Available viewing times, given by the system"
+          items:
+            type: string
+            description: "Time, format: day+hour+minute. such as \"17th 12:28\", and \"31st 11:00\""
+    actions:
+      - condition: "observable_time is not empty"
+        next_step: provide_viewing_times
+      - condition: "observable_time is empty"
+        next_step: ask_reschedule
+
+  - id: provide_viewing_times
+    prompt: "Based on your preferences, the available viewing times are: {observable_time}. Please select one. Also, please provide your phone number for confirmation."
+    next_step: finalize_viewing
+
+  - id: finalize_viewing
+    prompt: "Thank you. Your viewing is scheduled for {selected_time}. You will be contacted at {user_phone}. Please come to the gate of the community on time. The salesman will wait for you there. If necessary, you can contact the salesman through the salesman's phone number."
+    next_step: end
+
+  - id: ask_reschedule
+    prompt: "Unfortunately, there are no viewing times available at the moment. Would you like to reschedule, view another apartment, or wait for another time to view the apartment?"
+    actions:
+      - condition: "user_input == 'Reschedule'"
+        next_step: fix_viewing_time
+      - condition: "user_input == 'View other apartments'"
+        next_step: ask_satisfied_flat
+      - condition: "user_input == 'Wait for another time'"
+        next_step: wait_for_call
+
+  - id: wait_for_call
+    prompt: "Please make a call when you are ready to view the apartment again. We will assist you then."
+    next_step: end
+
+  - id: end
+    prompt: "Is there anything else I can help you with?"
+    next_step: null

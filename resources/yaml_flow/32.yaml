@@ -1,0 +1,99 @@
+flow:
+  - id: start
+    prompt: "Apartment fee payment. Please provide your phone number."
+    next_step: check_identity
+
+  - id: check_identity
+    tool_call:
+      name: identityChecks
+      description: "Query the user's identity"
+      parameters:
+        person_nums:
+          type: string
+          description: "Mobile phone number, composed of numbers, such as \"13223180476\""
+          required: true
+      output:
+        is_service:
+          type: string
+          description: "Apartment resident or not, enumeration type, [yes, no]"
+        is_fee:
+          type: object
+          description: "The fee sheet for the user, is empty if the user is not a resident of the apartment or if the fee has already been paid"
+          properties:
+            is_water:
+              type: string
+              description: "Water charges, e.g. \"55 Yuan\""
+            is_place:
+              type: string
+              description: "Accommodation fee, e.g. \"500 Yuan\""
+            is_elect:
+              type: string
+              description: "Electricity fee, e.g. \"300 Yuan\""
+            room_code:
+              type: string
+              description: "Room number, the user may have multiple rooms, in the format of \"2 numbers +0+3 numbers \", such as \"140028\""
+    actions:
+      - condition: "is_service == 'no'"
+        next_step: ask_reprovide_phone
+      - condition: "is_service == 'yes'"
+        next_step: ask_pay_now
+
+  - id: ask_reprovide_phone
+    prompt: "We have checked your identity through your mobile number, but found that you do not live in this apartment. Would you like to re-provide your mobile number so we can check again for you?"
+    next_step: check_reprovide_phone_answer
+
+  - id: check_reprovide_phone_answer
+    actions:
+      - condition: "user_input == 'yes'"
+        next_step: start
+      - condition: "user_input == 'no'"
+        next_step: goodbye_not_resident
+
+  - id: ask_pay_now
+    prompt: "Your outstanding fees are: Water: {is_water}, Accommodation: {is_place}, Electricity: {is_elect}. Would you like to pay now or later?"
+    next_step: check_pay_answer
+
+  - id: check_pay_answer
+    actions:
+      - condition: "user_input == 'Pay now'"
+        next_step: query_payment_progress
+      - condition: "user_input == 'Pay later'"
+        next_step: remind_pay_later
+
+  - id: query_payment_progress
+    tool_call:
+      name: paymentFees
+      description: "Payment progress inquiry"
+      parameters:
+        person_phones:
+          type: string
+          description: "Mobile phone number, consisting of digits, such as \"13302783127\""
+          required: true
+      output:
+        is_empty:
+          type: string
+          description: "Whether the fee has been paid, enumeration type, [paid, unpaid]"
+        whone_amount:
+          type: string
+          description: "The fee that the user needs to pay, e.g. \"322 yuan\""
+    actions:
+      - condition: "is_empty == 'unpaid'"
+        next_step: remind_pay_unpaid
+      - condition: "is_empty == 'paid'"
+        next_step: goodbye_paid_in_full
+
+  - id: goodbye_not_resident
+    prompt: "We only serve residents of this apartment. Goodbye."
+    next_step: null
+
+  - id: remind_pay_later
+    prompt: "You can pay later. We advise you to pay the fee as soon as possible."
+    next_step: null
+
+  - id: remind_pay_unpaid
+    prompt: "The fee has not been paid in full. Your remaining amount is {whone_amount}. Please pay as soon as possible."
+    next_step: null
+
+  - id: goodbye_paid_in_full
+    prompt: "The fee has been paid in full. Goodbye."
+    next_step: null

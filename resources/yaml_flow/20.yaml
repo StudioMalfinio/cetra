@@ -1,0 +1,136 @@
+flow:
+  - id: start
+    prompt: "Hello! What kind of products are you looking for today?"
+    next_step: search_products
+
+  - id: search_products
+    tool_call:
+      name: searchProducts
+      description: "Search for and find suitable products based on product type, brand, lower price limit, upper price limit, etc."
+      parameters:
+        product_types:
+          type: string
+          description: "Product type, default is \"Snacks\""
+          required: false
+        product_names:
+          type: string
+          description: "Brand, default is \"Three Squirrels\""
+          required: false
+        lower_limit:
+          type: string
+          description: "Price floor, value + yuan, default \"18 yuan\""
+          required: false
+        upper_limit:
+          type: string
+          description: "Price ceiling, value + yuan, default \"31 yuan\""
+          required: false
+      output:
+        is_finding:
+          type: string
+          description: "Whether the corresponding product can be found, enumeration type, [not found, can be found]"
+        product_messages:
+          type: object
+          description: "Product information sheet. If the corresponding product is not found, it will be empty."
+          properties:
+            product_id:
+              type: string
+              description: "Product name. For example, \"specialty of crispy baked buns slices with fresh milk\""
+            product_price:
+              type: string
+              description: "The actual price of the product, value + yuan, such as \"25 yuan\""
+            product_positions:
+              type: string
+              description: "Product origin, such as \"Chongqing Inner Mongolia\""
+    response: |
+      {% if is_finding == "can be found" %}
+      I found a product for you: {{ product_messages.product_id }}, the price is {{ product_messages.product_price }}, and it's from {{ product_messages.product_positions }}. Are you satisfied with this product?
+      {% else %}
+      I couldn't find any suitable products based on your requirements.
+      {% endif %}
+    actions:
+      - condition: "is_finding == 'can be found'"
+        next_step: user_satisfied_prompt
+      - condition: "is_finding == 'not found'"
+        next_step: ask_adjust_demand
+
+  - id: ask_adjust_demand
+    prompt: "I couldn't find any products that match your current requirements. Would you like to adjust your search criteria?"
+    next_step: handle_adjust_demand_response
+
+  - id: handle_adjust_demand_response
+    actions:
+      - condition: "user_input == 'yes'"
+        next_step: search_products
+      - condition: "user_input == 'no'"
+        next_step: apologies_to_user
+
+  - id: user_satisfied_prompt
+    prompt: "Are you satisfied with this product?"
+    next_step: handle_user_satisfaction
+
+  - id: handle_user_satisfaction
+    actions:
+      - condition: "user_input == 'yes'"
+        next_step: ask_willing_to_buy
+      - condition: "user_input == 'no'"
+        next_step: persuade_consider_other_items
+
+  - id: ask_willing_to_buy
+    prompt: "Great! Are you willing to buy it?"
+    next_step: handle_willing_to_buy_response
+
+  - id: handle_willing_to_buy_response
+    actions:
+      - condition: "user_input == 'yes'"
+        next_step: add_products_to_cart
+      - condition: "user_input == 'no'"
+        next_step: inquiry_unwilling_to_buy_reason
+
+  - id: add_products_to_cart
+    tool_call:
+      name: addCart
+      description: "Put the current item into the shopping cart and return the results"
+      parameters:
+        product_id:
+          type: string
+          description: "Product name, such as \"specialty of crispy baked buns slices with fresh milk\""
+          required: true
+        product_num:
+          type: integer
+          description: "Quantity, positive integer"
+          required: true
+      output:
+        add_result:
+          type: string
+          description: "Adding result, enumeration type, [Add successfully, quantity exceeds the limit, the product name is wrong, it is removed from shelves, out of stock]"
+    response: "The result of adding the product to the cart is: {{ add_result }}."
+    next_step: end
+
+  - id: inquiry_unwilling_to_buy_reason
+    prompt: "I understand. Could you please tell me the reason why you are unwilling to buy it? This will help us improve our service."
+    next_step: handle_reason_and_then_persuade
+
+  - id: handle_reason_and_then_persuade
+    actions:
+      - condition: "true" # This acts as a catch-all for any input
+        next_step: persuade_consider_other_items
+    response: "Thank you for your feedback. {{ is_reason }}"
+
+  - id: apologies_to_user
+    prompt: "I apologize, but we couldn't find any products that match your specific needs. Is there anything else I can help you with?"
+    next_step: null
+
+  - id: persuade_consider_other_items
+    prompt: "We have a wide variety of products that might fully satisfy your experience. Would you like to know about other products?"
+    next_step: handle_persuade_response
+
+  - id: handle_persuade_response
+    actions:
+      - condition: "user_input == 'yes'"
+        next_step: search_products
+      - condition: "user_input == 'NO'"
+        next_step: apologies_to_user
+
+  - id: end
+    prompt: "Is there anything else I can assist you with today?"
+    next_step: null

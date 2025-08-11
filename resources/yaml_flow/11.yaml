@@ -1,0 +1,111 @@
+flow:
+  - id: WI000
+    prompt: "Hello! I'm your hotel digital manager. Where would you like to go?"
+    next_step: WI001
+
+  - id: WI001
+    tool_call:
+      name: searchHotel
+      description: "Retrieve a list of available hotels based on the user's destination, check-in, and check-out dates."
+      parameters:
+        destination:
+          type: string
+          description: "The destination city or area. For example, Chongqing."
+          required: true
+        check_in_date:
+          type: string
+          description: "The user's intended check-in date. For example \"2024/3/27\". Year + Month + day."
+          required: true
+        check_out_date:
+          type: string
+          description: "The user's intended check-out date. For example \"2024/3/27\". Year + Month + day."
+          required: true
+      output:
+        data:
+          type: object
+          description: "List of hotels with basic information. If this list is empty, there is no hotel available."
+          properties:
+            hotel_id:
+              type: string
+              description: "The unique identifier for the hotel. For example \"CQYB0075294\"."
+            name:
+              type: string
+              description: "The name of the hotel. For example \"Chongqing Jinyin Hotel\"."
+            location:
+              type: string
+              description: "The address or location of the hotel. For example, \"15 Guihua Road, Yangzhou City, Jiangsu Province\". The format is province + county + Road name + road number."
+            car_typeprice:
+              type: string
+              description: "The price for the stay is based on the given dates. It should be ¥+ a positive integer. For example, \"¥299\"."
+    response: |
+      "Here are the available hotels for {destination}:
+      {% for hotel in data %}
+      Hotel Name: {{ hotel.name }}
+      Location: {{ hotel.location }}
+      Price: {{ hotel.car_typeprice }}
+      {% endfor %}
+      Are you satisfied with these options?"
+    actions:
+      - condition: "data is not empty"
+        next_step: WI003
+      - condition: "data is empty"
+        next_step: WI002
+
+  - id: WI002
+    prompt: "I'm sorry, but no hotels were found that match your criteria. Would you like to try searching again with different dates or a different destination?"
+    actions:
+      - condition: "user response is 'yes' or 'reselect'"
+        next_step: WI001
+      - condition: "user response is 'no'"
+        next_step: WI006
+
+  - id: WI003
+    prompt: "Are you satisfied with the hotel options provided?"
+    actions:
+      - condition: "user response is 'yes' or 'satisfied'"
+        next_step: WI005
+      - condition: "user response is 'no' or 'not satisfied'"
+        next_step: WI004
+
+  - id: WI004
+    prompt: "I understand these hotels might not be exactly what you're looking for. I can try recommending other hotels. Would you like me to do that?"
+    actions:
+      - condition: "user response is 'yes' or 'recommend'"
+        next_step: WI001
+      - condition: "user response is 'no'"
+        next_step: WI009
+
+  - id: WI005
+    prompt: "Great! To help us improve our service, could you please rate your experience? You can choose from good, fair, or poor."
+    actions:
+      - condition: "user response is 'good'"
+        next_step: WI007
+      - condition: "user response is 'fair' or 'poor'"
+        next_step: WI008
+      - condition: "user response is 'no review'"
+        next_step: WI009
+
+  - id: WI006
+    prompt: "I apologize that I couldn't find a suitable hotel for you. Please feel free to ask if you have any other needs."
+    next_step: null
+
+  - id: WI007
+    prompt: "Thank you for your positive review! We appreciate your business. Please don't hesitate to reach out if you need anything else."
+    next_step: null
+
+  - id: WI008
+    prompt: "Thank you for your feedback. Could you please tell me the reason for your rating? This will help us make corrections. We appreciate you using our service."
+    tool_call:
+      name: collect_reason
+      description: "Collect the user's reason for a negative review."
+      parameters:
+        person_reason:
+          type: string
+          description: "Reason why user doesn't want to give us an evaluation."
+          required: true
+    response: "Thank you for providing your feedback. We will use this information to improve our service. We appreciate you using our service."
+    next_step: WI009
+
+  - id: WI009
+    prompt: "Thank you for using our hotel service. Goodbye!"
+    next_step: null

@@ -1,0 +1,210 @@
+flow:
+  - id: start
+    prompt: "Welcome! I can help you check your orders. Would you like to check an order?"
+    next_step: get_order_information
+
+  - id: get_order_information
+    tool_call:
+      name: lookOrders
+      description: "Obtain brief information about orders placed under the user's account based on user information"
+      parameters:
+        username:
+          type: string
+          description: "User name, 4 to 12 letters and numbers, can have spaces. If not filled in, the system will access the currently bound account to obtain it."
+          required: false
+        user_account:
+          type: string
+          description: "User account, 6 to 12 letters and numbers, both uppercase and lowercase are available. If left blank, the system will access the currently bound account to obtain it."
+          required: false
+        fetch_scope:
+          type: list
+          description: "Get the range. If written, it must not be empty. If not written, all will be selected."
+          items:
+            type: string
+            description: "Current status, enumeration type, [received, not shipped, in transit]"
+          required: false
+    response: |
+      {% if account_details == "normal account" %}
+      Here is a summary of your order information: {{ order_info | tojson }}.
+      {% elif account_details == "abnormal account" %}
+      It seems your account information is abnormal. Please provide your correct order information.
+      {% else %}
+      I couldn't retrieve your order information. Please try again later.
+      {% endif %}
+    next_step: confirm_order_operation
+
+  - id: confirm_order_operation
+    prompt: "Do you want to operate on a specific order?"
+    actions:
+      - condition: "user_input == 'Yes'"
+        next_step: confirm_order_state
+      - condition: "user_input == 'No'"
+        next_step: goodbye
+
+  - id: confirm_order_state
+    prompt: "Which order would you like to operate on? Please provide the order ID."
+    next_step: check_order_status
+
+  - id: check_order_status
+    tool_call:
+      name: viewDetails
+      description: "Get order details"
+      parameters:
+        order_id:
+          type: string
+          description: "Order number, 3 letters + 12 numbers, such as \"ABC012345678901\""
+          required: true
+    response: |
+      {% if is_order_correct == "correct order" %}
+        {% if progress_info.change_reason == "Goods have been signed for" %}
+          Your order {{ order_id }} has been received.
+        {% elif progress_info.change_reason == "Merchant has shipped" or progress_info.change_reason == "Courier company has picked up" %}
+          Your order {{ order_id }} has not been shipped yet.
+        {% else %}
+          Your order {{ order_id }} is currently {{ progress_info.change_reason }}.
+        {% endif %}
+      {% elif is_order_correct == "wrong order" %}
+        The order ID you provided is incorrect.
+      {% else %}
+        I could not retrieve the details for order {{ order_id }}.
+      {% endif %}
+    next_step: handle_order_received_or_not
+
+  - id: handle_order_received_or_not
+    actions:
+      - condition: "progress_info.change_reason == 'Goods have been signed for'"
+        next_step: ask_return_or_not
+      - condition: "progress_info.change_reason != 'Goods have been signed for'"
+        next_step: ask_order_operation_type
+
+  - id: ask_return_or_not
+    prompt: "The product has been received. Do you want to return it?"
+    actions:
+      - condition: "user_input == 'Yes'"
+        next_step: process_return
+      - condition: "user_input == 'Not return the good'"
+        next_step: explain_return_policy
+
+  - id: explain_return_policy
+    prompt: "Received orders can only be returned within a certain period. Please check the return policy for details."
+    next_step: ask_other_orders
+
+  - id: process_return
+    tool_call:
+      name: orderOperate
+      description: "The user operates the order and returns the results"
+      parameters:
+        order_id:
+          type: string
+          description: "Order number, 3 letters + 12 numbers, such as \"ABC012345678901\""
+          required: true
+        operation_name:
+          type: string
+          description: "Operation term, enumeration type, [return, cancel, reminder, modification]"
+          required: true
+        modified_address:
+          type: string
+          description: "The format of the modified address is: province city + district county + road name + road number + community name + building number + floor number + household number, for example, \"Floor 15, Building 1, Fenghua Community, No. 22 Gucheng Road, Xi'an County, Shaanxi Province. The modification is needed."
+          required: false
+        modified_recipient:
+          type: string
+          description: "The modified recipient, such as \"Mike Din\", the modification should be written"
+          required: false
+        modified_phone_number:
+          type: string
+          description: "The modified mobile phone number, a 13-digit mobile phone number, such as \"13801234567\", the modification must be written"
+          required: false
+    response: "The merchant is reviewing your return request."
+    next_step: ask_other_orders
+
+  - id: ask_order_operation_type
+    prompt: "What would you like to do with this order? (Check order information, cancel the order, expedite the order, or change the address?)"
+    actions:
+      - condition: "user_input == 'Check order information'"
+        next_step: view_order_details_again
+      - condition: "user_input == 'Cancel the order'"
+        next_step: process_cancel_order
+      - condition: "user_input == 'Expedite the order'"
+        next_step: process_expedite_order
+      - condition: "user_input == 'Change the address'"
+        next_step: ask_new_address
+
+  - id: view_order_details_again
+    tool_call:
+      name: viewDetails
+      description: "Get order details"
+      parameters:
+        order_id:
+          type: string
+          description: "Order number, 3 letters + 12 numbers, such as \"ABC012345678901\""
+          required: true
+    response: "Here are the detailed information for order {{ order_id }}: {{ item_name }} with progress: {{ progress_info.change_reason }} at {{ progress_info.change_time }}."
+    next_step: ask_other_orders
+
+  - id: process_cancel_order
+    tool_call:
+      name: orderOperate
+      description: "The user operates the order and returns the results"
+      parameters:
+        order_id:
+          type: string
+          description: "Order number, 3 letters + 12 numbers, such as \"ABC012345678901\""
+          required: true
+        operation_name:
+          type: string
+          description: "Operation term, enumeration type, [return, cancel, reminder, modification]"
+          required: true
+    response: "Your order {{ order_id }} has been canceled."
+    next_step: ask_other_orders
+
+  - id: process_expedite_order
+    tool_call:
+      name: orderOperate
+      description: "The user operates the order and returns the results"
+      parameters:
+        order_id:
+          type: string
+          description: "Order number, 3 letters + 12 numbers, such as \"ABC012345678901\""
+          required: true
+        operation_name:
+          type: string
+          description: "Operation term, enumeration type, [return, cancel, reminder, modification]"
+          required: true
+    response: "Your order {{ order_id }} has been expedited."
+    next_step: ask_other_orders
+
+  - id: ask_new_address
+    prompt: "Please provide the new address for order {{ order_id }}."
+    next_step: process_change_address
+
+  - id: process_change_address
+    tool_call:
+      name: orderOperate
+      description: "The user operates the order and returns the results"
+      parameters:
+        order_id:
+          type: string
+          description: "Order number, 3 letters + 12 numbers, such as \"ABC012345678901\""
+          required: true
+        operation_name:
+          type: string
+          description: "Operation term, enumeration type, [return, cancel, reminder, modification]"
+          required: true
+        modified_address:
+          type: string
+          description: "The format of the modified address is: province city + district county + road name + road number + community name + building number + floor number + household number, for example, \"Floor 15, Building 1, Fenghua Community, No. 22 Gucheng Road, Xi'an County, Shaanxi Province. The modification is needed."
+          required: true
+    response: "Intercepting your order {{ order_id }} for address modification. This may fail."
+    next_step: ask_other_orders
+
+  - id: ask_other_orders
+    prompt: "Are there any other orders you need to operate on?"
+    actions:
+      - condition: "user_input == 'Yes'"
+        next_step: get_order_information
+      - condition: "user_input == 'No'"
+        next_step: goodbye
+
+  - id: goodbye
+    prompt: "Thank you for using our service. Goodbye!"
+    next_step: null

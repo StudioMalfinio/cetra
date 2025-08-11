@@ -1,0 +1,145 @@
+flow:
+  - id: start
+    prompt: "Workstation change initiated. Please provide your worker number."
+    next_step: get_user_info
+
+  - id: get_user_info
+    tool_call:
+      name: getUserInfo
+      description: "Getting the user information based on their work number."
+      parameters:
+        worker_num:
+          type: string
+          description: "Worker number, 3 letters + 3 ~ 4 numbers, such as \"ESE510\""
+          required: true
+      output:
+        back_code:
+          type: string
+          description: "Server returned code, 200 for normal, others for error, 404, which means the search is not available."
+        work_num:
+          type: string
+          description: "Workstation number, 2 letters + 2 numbers + 1 letter + 2 numbers, e.g. “CQ-05-C-04\""
+    actions:
+      - condition: "back_code == '200'"
+        next_step: determine_workstation
+      - condition: "back_code != '200'"
+        next_step: apologize_misidentified
+
+  - id: determine_workstation
+    prompt: "Current goal: Determine the workstation. Do you have a defined workstation?"
+    actions:
+      - condition: "user_input == 'yes'"
+        next_step: verify_workstation
+      - condition: "user_input == 'no'"
+        next_step: provide_recommended_stations
+
+  - id: apologize_misidentified
+    prompt: "I apologize, but we were unable to identify your user information correctly. We cannot proceed with your workstation change request."
+    next_step: null
+
+  - id: verify_workstation
+    tool_call:
+      name: verificationStation
+      description: "Verify the feasibility of user-provided workstations."
+      parameters:
+        worker_num:
+          type: string
+          description: "Worker number, 3 letters + 3 ~ 4 numbers, such as \"ESE510\""
+          required: true
+        work_num:
+          type: string
+          description: "Workstation number, 2 letters + 2 numbers + 1 letter + 2 numbers, e.g. “CQ-05-C-04\""
+          required: true
+      output:
+        back_code:
+          type: string
+          description: "Server returned code, 200 for normal, others for error."
+        feasible:
+          type: string
+          description: "Whether the workstation is true or false, enumeration type, [true, false]"
+    actions:
+      - condition: "feasible == 'true'"
+        next_step: fill_application_form
+      - condition: "feasible == 'false'"
+        next_step: reselect_workstation
+
+  - id: provide_recommended_stations
+    tool_call:
+      name: recommendedStation
+      description: "Recommend the workstation to the user."
+      parameters:
+        worker_num:
+          type: string
+          description: "Worker number, 3 letters + 3 ~ 4 numbers, such as \"ESE510\""
+          required: true
+      output:
+        back_code:
+          type: string
+          description: "Server returned code, 200 for normal, others for error."
+        station_object:
+          type: object
+          description: "Feasible station information, blank means no station information."
+          properties:
+            work_num:
+              type: string
+              description: "Workstation number, 2 letters + 2 numbers + 1 letter + 2 numbers, e.g. “CQ-05-C-04\""
+            work_location:
+              type: string
+              description: "Work location, province, city + county + place name + company name, such as “Chengdu Wuhou Zhiyue Network Technology Co."
+    response: "Here are some recommended workstations: {{station_object | default('No stations available at the moment.')}}"
+    actions:
+      - condition: "station_object is not empty"
+        next_step: continue_or_not_change
+      - condition: "station_object is empty"
+        next_step: say_goodbye
+
+  - id: continue_or_not_change
+    prompt: "Would you like to continue with one of these workstations or do you not wish to change?"
+    actions:
+      - condition: "user_input == 'continue'"
+        next_step: verify_workstation # Assuming user will provide a new workstation number
+      - condition: "user_input == 'do not change'"
+        next_step: say_goodbye
+
+  - id: fill_application_form
+    tool_call:
+      name: applicationForm
+      description: "Change the workstation."
+      parameters:
+        worker_num:
+          type: string
+          description: "Worker number, 3 letters + 3 ~ 4 numbers, such as \"ESE510\""
+          required: true
+        is_replace:
+          type: string
+          description: "Position number to be changed, e.g. “P122”"
+          required: true
+      output:
+        is_success:
+          type: string
+          description: "Whether the workstation request was successful or not, enumeration type, [success, unsuccess]"
+    actions:
+      - condition: "is_success == 'success'"
+        next_step: application_successful
+      - condition: "is_success == 'unsuccess'"
+        next_step: application_unsuccessful
+
+  - id: application_successful
+    prompt: "Your application to change your workstation has been successful. Your workstation will be changed tomorrow."
+    next_step: null
+
+  - id: application_unsuccessful
+    prompt: "Unfortunately, your application to change your workstation was not successful."
+    next_step: null
+
+  - id: reselect_workstation
+    prompt: "The workstation you selected is unavailable. Please re-select another workstation or ask us to provide one."
+    actions:
+      - condition: "user_input == 're-select'"
+        next_step: verify_workstation # Assuming user will provide a new workstation number
+      - condition: "user_input == 'provide one'"
+        next_step: provide_recommended_stations
+
+  - id: say_goodbye
+    prompt: "Thank you for using our service. Goodbye!"
+    next_step: null

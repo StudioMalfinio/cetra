@@ -1,0 +1,142 @@
+flow:
+  - id: VD000
+    prompt: "Welcome to Bank digital teller. How can I help you today?"
+    next_step: VD002
+
+  - id: VD002
+    prompt: "Please provide your ID number and bank card account number."
+    tool_call:
+      name: queryBank
+      description: "Check the availability of the bank account"
+      parameters:
+        person_id:
+          type: string
+          description: "User ID number, 18 digits. The default is \"130000200603213021\""
+          required: false
+        person_card:
+          type: string
+          description: "User's bank account number. The default is \"61111023267\""
+          required: false
+    response: ""
+    actions:
+      - condition: "is_founding == 'found'"
+        next_step: VD004
+      - condition: "is_founding == 'not found'"
+        next_step: VD005
+
+  - id: VD004
+    prompt: "Your bank account has been found. Your current balance is {card_money}. Do you have any questions about it?"
+    next_step: VD003
+    actions:
+      - condition: "user_input contains 'yes'"
+        next_step: VD003
+      - condition: "user_input contains 'no'"
+        next_step: VD001
+
+  - id: VD003
+    prompt: "Here are your last five transactions: {card_message}. You can view the corresponding balance in the transaction information."
+    tool_call:
+      name: bankInFormation
+      description: "Check the last five transactions of the bank card"
+      parameters:
+        person_name:
+          type: string
+          description: "User name, default is \"Wang Lin\""
+          required: false
+      output:
+        card_message:
+          type: object
+          description: "Return the last five transactions of the bank card. If the bank card has less than five transaction records, all transaction records will be returned. Otherwise, it will be empty."
+          properties:
+            transaction_time:
+              type: string
+              description: "Transaction time, year + month + day, for example, \"May 3, 2050\""
+            transaction_money:
+              type: string
+              description: "Transaction amount, value + yuan, for example, \"300 yuan\""
+            transaction_whole:
+              type: string
+              description: "The amount remaining on the card after the transaction, value + yuan, for example, \"100 yuan\""
+    response: ""
+    next_step: VD001
+
+  - id: VD001
+    prompt: "Do you need any other services?"
+    next_step: VD007
+    actions:
+      - condition: "user_input contains 'yes'"
+        next_step: VD006
+      - condition: "user_input contains 'no'"
+        next_step: VD007
+
+  - id: VD005
+    prompt: "The account number was not found, possibly due to errors in your ID number or bank card account number. Would you like to provide the information again?"
+    next_step: VD002
+    actions:
+      - condition: "user_input contains 'yes'"
+        next_step: VD002
+      - condition: "user_input contains 'no'"
+        next_step: VD007
+
+  - id: VD006
+    prompt: "Would you like to apply for a new bank card or transfer your existing bank card account?"
+    next_step: VD008
+    actions:
+      - condition: "user_input contains 'apply'"
+        next_step: VD008
+      - condition: "user_input contains 'transfer'"
+        next_step: VD009
+
+  - id: VD008
+    prompt: "To apply for a bank card online, please log in to the mobile banking app, click on 'Apply for a bank card', and fill out the application form with your name, ID number, contact information, and bank card type. After submitting, your application will be processed."
+    tool_call:
+      name: cardProcessing
+      description: "Apply for a bank card"
+      parameters:
+        card_form:
+          type: string
+          description: "Bank card type. The default is \"Agricultural Bank of China Card\""
+          required: false
+        person_value:
+          type: string
+          description: "User name. The default is \"Wang Lin\""
+          required: false
+        person_number:
+          type: string
+          description: "User ID number, 18 digits. Default is \"130000200603213021\""
+          required: false
+        person_id:
+          type: string
+          description: "User's bank account number. Default is \"61111023267\""
+          required: false
+      output:
+        is_attends:
+          type: string
+          description: "Whether the application is successful. Enumeration type, [Failed, succeeded]"
+    response: ""
+    actions:
+      - condition: "is_attends == 'succeeded'"
+        next_step: VD010
+      - condition: "is_attends == 'Failed'"
+        next_step: VD011
+
+  - id: VD010
+    prompt: "Your bank card application has been successful. Please provide your address to receive the card. We will mail the bank card to {card_position}."
+    tool_call:
+      name: null
+      description: ""
+      parameters: {}
+    response: ""
+    next_step: VD007
+
+  - id: VD011
+    prompt: "Your application was unsuccessful. Please check your name, ID number, contact information, and bank card type, and submit the information again."
+    next_step: VD002
+
+  - id: VD009
+    prompt: "To transfer your bank card account, please log in to the bank APP on your mobile phone, go to the security center, find the option to change password, and follow the instructions to complete the process."
+    next_step: VD007
+
+  - id: VD007
+    prompt: "Thank you for using our services. Goodbye!"
+    next_step: null

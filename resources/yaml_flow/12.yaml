@@ -1,0 +1,101 @@
+flow:
+  - id: PN000
+    prompt: "Meeting arrangement assistant started. What action do you want to take?"
+    next_step: PN001
+
+  - id: PN001
+    tool_call:
+      name: inspectionMeeting
+      description: "Check meeting information"
+      parameters:
+        meeting_id:
+          type: string
+          description: "Conference number, number, default \"23898856536\""
+          required: false
+        meeting_time:
+          type: string
+          description: "Meeting start time, year + month + day, default \"February 8, 2046\""
+          required: false
+        meeting_own:
+          type: string
+          description: "Conference initiator, default \"ajb\""
+          required: false
+        own_value:
+          type: string
+          description: "User DingTalk name, default \"wabg\""
+          required: false
+      output:
+        is_start:
+          type: string
+          description: "Whether the meeting has started, enumeration type, [started, not started]"
+        is_quit:
+          type: string
+          description: "Whether the meeting can be canceled, enumeration type, [yes, no]"
+        is_reason:
+          type: string
+          description: "Reasons why the meeting cannot be canceled, enumeration type, [mobile phone issues, network connection issues, can be canceled]"
+        is_main:
+          type: string
+          description: "Whether the user is the host of the meeting, enumeration type, [yes, no]"
+    response: "Checking meeting status..."
+    actions:
+      - condition: "is_start == 'started'"
+        next_step: PN002
+      - condition: "is_start == 'not started'"
+        next_step: PN006
+
+  - id: PN002
+    response: "Determining if the meeting can be canceled..."
+    actions:
+      - condition: "is_quit == 'no'"
+        next_step: PN003
+      - condition: "is_quit == 'yes'"
+        next_step: PN007
+
+  - id: PN003
+    response: "Identifying the reason for cancellation failure..."
+    actions:
+      - condition: "is_reason == 'mobile phone issues'"
+        next_step: PN004
+      - condition: "is_reason == 'network connection issues'"
+        next_step: PN005
+
+  - id: PN004
+    prompt: "DingTalk on mobile phones may have some bugs or compatibility issues, which can lead to uncanceled meetings. Please try to log in to your account using the PC DingTalk and then cancel the meeting."
+    next_step: null
+
+  - id: PN005
+    prompt: "The network connected to your device is unstable, which may result in the inability to cancel the meeting. Please try to connect to other networks or restart your network devices. Then try to cancel the appointment again."
+    next_step: null
+
+  - id: PN006
+    prompt: "Please open DingTalk, find the scheduled meeting on the home page, enter the meeting details interface, and select 'Delete' to cancel the meeting."
+    next_step: null
+
+  - id: PN007
+    prompt: "Once a meeting is canceled, it cannot be changed. Are you sure you want to cancel the meeting?"
+    actions:
+      - condition: "user_input == 'no'"
+        next_step: PN011
+      - condition: "user_input == 'yes'"
+        next_step: PN008
+
+  - id: PN008
+    response: "Checking if you are the meeting host..."
+    actions:
+      - condition: "is_main == 'yes'"
+        next_step: PN009
+      - condition: "is_main == 'no'"
+        next_step: PN010
+
+  - id: PN009
+    prompt: "The meeting has been canceled."
+    next_step: null
+
+  - id: PN010
+    prompt: "You can ask the meeting host if he/she can end the meeting. If the host agrees, the meeting can be ended."
+    next_step: null
+
+  - id: PN011
+    prompt: "Please think carefully before replying."
+    next_step: PN007

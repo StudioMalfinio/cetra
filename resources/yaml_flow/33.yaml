@@ -1,0 +1,96 @@
+flow:
+  - id: OC001
+    prompt: "Please provide the order number to query."
+    next_step: get_shipment_details
+
+  - id: get_shipment_details
+    tool_call:
+      name: getFullShipmentDetails
+      description: "Check the order based on the order number"
+      parameters:
+        ticket_nums:
+          type: string
+          description: "Order number, e.g. 'SF2394323423'"
+          required: true
+      output:
+        is_search:
+          type: string
+          description: "Whether the corresponding order can be found, enumeration type, [yes, no]"
+        ticket_forms:
+          type: object
+          description: "The order information table, keeping empty if it does not exist"
+          properties:
+            is_sending:
+              type: string
+              description: "Delivered or not, enumeration type, [not delivered, delivered]"
+            is_posting:
+              type: string
+              description: "Mailing time, year + month + day + hour + minute, such as '12:12 on February 15, 2030'"
+            is_action:
+              type: string
+              description: "Item types, such as 'snacks'"
+            is_position:
+              type: string
+              description: "The current location of the order, for example, 'Changsha, Hunan'"
+    response: "" # The response is handled by the prompts in the next steps (OC011 or OC002)
+    actions:
+      - condition: "tool_output.is_search == 'no'"
+        next_step: OC011
+      - condition: "tool_output.is_search == 'yes'"
+        next_step: OC002
+
+  - id: OC011
+    prompt: "The order could not be found. The reason may be that the order number is wrong. Please re-provide the order number."
+    next_step: OC001 # Loop back to ask for order number
+
+  - id: OC002
+    prompt: "The corresponding order information has been successfully found. Here are the details:\nItem Type: {tool_output.ticket_forms.is_action}\nMailing Time: {tool_output.ticket_forms.is_posting}\nIs Delivered: {tool_output.ticket_forms.is_sending}\nCurrent Location: {tool_output.ticket_forms.is_position}"
+    actions:
+      - condition: "tool_output.ticket_forms.is_sending == 'not delivered'"
+        next_step: OC003
+      - condition: "tool_output.ticket_forms.is_sending == 'delivered'"
+        next_step: OC004
+
+  - id: OC003
+    prompt: "The item has not been delivered. Would you like to urge logistics or check the current location of the order?"
+    actions:
+      - condition: "user_input.includes('urge')"
+        next_step: OC009
+      - condition: "user_input.includes('location') or user_input.includes('current location')"
+        next_step: OC010
+
+  - id: OC009
+    prompt: "We will contact the courier immediately and strive for faster delivery."
+    next_step: null
+
+  - id: OC010
+    prompt: "The current location of your order is: {tool_output.ticket_forms.is_position}."
+    next_step: null
+
+  - id: OC004
+    prompt: "The express has been delivered. Have you received the delivery?"
+    actions:
+      - condition: "user_input.includes('not received') or user_input.includes('no')"
+        next_step: OC005
+      - condition: "user_input.includes('received') or user_input.includes('yes')"
+        next_step: OC006
+
+  - id: OC005
+    prompt: "You are advised to go to the nearby Cainiao Station to pick up the delivery."
+    next_step: null
+
+  - id: OC006
+    prompt: "Are you satisfied with our express service?"
+    actions:
+      - condition: "user_input.includes('unsatisfied') or user_input.includes('no')"
+        next_step: OC007
+      - condition: "user_input.includes('satisfied') or user_input.includes('yes')"
+        next_step: OC008
+
+  - id: OC007
+    prompt: "We will redouble our efforts in the future and strive to satisfy you next time."
+    next_step: null
+
+  - id: OC008
+    prompt: "Thanks for your high comments!"
+    next_step: null

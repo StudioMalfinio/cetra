@@ -1,0 +1,128 @@
+flow:
+  - id: GZ000
+    prompt: "Book a ride. What is your name, drop-off destination, and desired pickup time?"
+    next_step: GZ001
+
+  - id: GZ001
+    tool_call:
+      name: searchAvailableRides
+      description: "Searches for available ride options based on the user's travel details."
+      parameters:
+        pickup_location:
+          type: string
+          description: "The location from where the user wants to be picked up. The format is: City + District/County + Road name + Road number. For example, \"No. 23, Xiangshan Road, Haidian District, Beijing\""
+          required: true
+        dropoff_location:
+          type: string
+          description: "The destination where the user wants to be dropped off. The format is: City + District/County + Road name + Road number. For example, \"No. 88, Lanxi Road, Nanshan District, Yangshi\""
+          required: true
+        pickup_time:
+          type: string
+          description: "The desired pickup time for the ride. The format is day + hour + minute, such as \"11:28 on the 19th\""
+          required: true
+      output:
+        rides:
+          type: object
+          description: "A list of available ride options with details."
+          properties:
+            service_provider:
+              type: string
+              description: "The name of the service provider. Last name + last name."
+            vehicle_type:
+              type: string
+              description: "The type of vehicle offered for the ride. For example. The format is number of seats + vehicle type. For example, \"5-seat commercial vehicle\", \"3-seat tricycle\", \"1-seat motorcycle\"."
+            estimated_cost:
+              type: string
+              description: "The estimated cost of the ride. The format is ¥+floating point number, for example, \"¥27.38\""
+            pickup_time:
+              type: string
+              description: "The estimated pickup time for the ride. The format is day + hour + minute, such as \"11:28 on the 19th\""
+    response: |
+      "Here are the available rides:
+      {% for ride in rides %}
+      - Service Provider: {{ ride.service_provider }}, Vehicle Type: {{ ride.vehicle_type }}, Estimated Cost: {{ ride.estimated_cost }}, Pickup Time: {{ ride.pickup_time }}
+      {% endfor %}
+      Please confirm which ride you would like to book."
+    actions:
+      - condition: "len(rides) > 0"
+        next_step: GZ002
+      - condition: "len(rides) == 0"
+        next_step: GZ008
+
+  - id: GZ002
+    prompt: "You have selected {{ vehicle_type }}. Please confirm this selection."
+    actions:
+      - condition: "user_input == 'Yes'"
+        next_step: GZ003
+      - condition: "user_input == 'No'"
+        next_step: GZ004
+
+  - id: GZ003
+    tool_call:
+      name: confirmBooking
+      description: "Confirms the user's selection and finalizes the ride booking."
+      parameters:
+        ride_id:
+          type: string
+          description: "The unique identifier of the ride to be booked. UUID. For example, \"02f3dda1-6fa6-b7fd-3ee7-abd8a9706941\"."
+          required: true
+      output:
+        booking_confirmation:
+          type: object
+          description: "Booking information"
+          properties:
+            booking_id:
+              type: string
+              description: "The unique identifier for the confirmed booking. UUID. For example, \"c5dc3e8d-85ca-bf39-ec57-667663b6c8a7\"."
+            name:
+              type: string
+              description: "The name of the driver. Last name + first name."
+            vehicle:
+              type: string
+              description: "The type of vehicle the driver is using. The format is number of seats + vehicle type. For example, \"5-seat commercial vehicle\", \"3-seat tricycle\", \"1-seat motorcycle\"."
+            license_plate:
+              type: string
+              description: "The license plate number of the driver's vehicle. The first digit of the license plate is a Chinese character, the second and third are English letters, and the last 4 to 5 digits are numbers and letters without the letters I and O."
+            pickup_time:
+              type: string
+              description: "The confirmed pickup time for the ride. The format is: day + hour + minute, such as \"11:28 on the 19th\"."
+    response: |
+      "Your booking is confirmed!
+      Booking ID: {{ booking_confirmation.booking_id }}
+      Driver: {{ booking_confirmation.name }}
+      Vehicle: {{ booking_confirmation.vehicle }}
+      License Plate: {{ booking_confirmation.license_plate }}
+      Pickup Time: {{ booking_confirmation.pickup_time }}
+
+      How would you rate this service? (Excellent, Good, Fair, Very Poor)"
+    actions:
+      - condition: "user_input == 'Excellent'"
+        next_step: GZ005
+      - condition: "user_input == 'Good' or user_input == 'Fair' or user_input == 'Very Poor'"
+        next_step: GZ006
+      - condition: "user_input == ''"
+        next_step: GZ007
+
+  - id: GZ004
+    prompt: "The selection cannot be changed once it has been confirmed. Please think carefully before replying."
+    next_step: GZ002
+
+  - id: GZ005
+    prompt: "Thank you for your excellent feedback! We will continue to strive to improve our services and maintain a good service attitude to be worthy of your high praise."
+    next_step: null
+
+  - id: GZ006
+    prompt: "Thank you for your comments. We will make sustained efforts to provide satisfying service next time."
+    next_step: null
+
+  - id: GZ007
+    prompt: "We apologize for any inconvenience. Goodbye!"
+    next_step: null
+
+  - id: GZ008
+    prompt: "We apologize, but there are no suitable rides available based on the information provided. Would you like to re-supply your name, drop-off destination, and ride time to confirm again? (Yes/No)"
+    actions:
+      - condition: "user_input == 'Yes'"
+        next_step: GZ001
+      - condition: "user_input == 'No'"
+        next_step: GZ007

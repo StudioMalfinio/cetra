@@ -1,0 +1,60 @@
+flow:
+  - id: ty000
+    prompt: "Welcome! Are you inquiring about gas maintenance?"
+    next_step: ty001
+
+  - id: ty001
+    prompt: "Regarding the maintenance location, is the area within the homeowner's meter or outside and including the homeowner's meter?"
+    actions:
+      - condition: "Gas Maintenance"
+        next_step: ty002
+      - condition: "Within Homeowner Meter"
+        next_step: ty002
+      - condition: "Outside of Homeowner Meter"
+        next_step: ty003
+
+  - id: ty002
+    prompt: "The area within the homeowner's meter is your responsibility. You can choose self-maintenance or request our services. Would you like us to perform the maintenance?"
+    actions:
+      - condition: "Request our maintenance"
+        next_step: ty003
+      - condition: "Request third party maintenance"
+        next_step: ty004
+
+  - id: ty003
+    tool_call:
+      name: contactMaster
+      description: "Ask the master to come to maintain"
+      parameters:
+        location:
+          type: string
+          description: "Location, the format is: city + district + road name + road number + district name + building number + floor number + household number, for example, \"No. 5, 4th Floor, Building 6, Fortune Building, No. 10 Fuhua Road, Futian District, Shenzhen, Guangdong Province\""
+          required: true
+      output:
+        master_name:
+          type: string
+          description: "Master name"
+        master_phone:
+          type: string
+          description: "Master phone, such as 13800001111"
+        master_arrival_time:
+          type: string
+          description: "Master arrival time, the format is \"day + hour + minute\", like \"17th 11:00\""
+    response: "We will arrange a technician for you. The technician's name is {master_name} and their phone number is {master_phone}. They are expected to arrive around {master_arrival_time}."
+    next_step: null
+
+  - id: ty004
+    prompt: "You may contact a technician independently for maintenance. We will conduct an inspection afterward. Will you have completed maintenance and be available for inspection after seven days?"
+    actions:
+      - condition: "Available"
+        next_step: ty005
+      - condition: "Unavailable"
+        next_step: ty006
+
+  - id: ty005
+    prompt: "We will perform the inspection on the 7th business day. Is there anything else?"
+    next_step: null
+
+  - id: ty006
+    prompt: "If you are not available for the inspection, please let us know your preferred day for the maintenance check. We will collect this information."
+    next_step: null

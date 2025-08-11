@@ -1,0 +1,128 @@
+flow:
+  - id: start_travel_guidance
+    prompt: "Welcome to the Travel Assistant! How can I help you with your travel plans?"
+    next_step: collect_travel_details
+
+  - id: collect_travel_details
+    prompt: "To find a suitable ride, please provide the following details: travel mode (e.g., 'High-speed rail'), departure point (e.g., 'Chongqing'), arrival point (e.g., 'Shenzhen'), and departure date (e.g., 'February 6, 2037')."
+    next_step: call_travel_directions
+
+  - id: call_travel_directions
+    tool_call:
+      name: travelDirections
+      description: "Search for a suitable ride"
+      parameters:
+        travel_mode:
+          type: string
+          description: "Travel mode. The default is \"High-speed rail\""
+          required: false
+        travel_begin:
+          type: string
+          description: "Departure point. The default is \"Chongqing\""
+          required: false
+        travel_end:
+          type: string
+          description: "Arrival point. The default is \"Shenzhen\""
+          required: false
+        travel_date:
+          type: string
+          description: "Departure date, year + month + day. The default is \"February 6, 2037\""
+          required: false
+      output:
+        is_holiway:
+          type: string
+          description: "Availability of a suitable vehicle. Enumerated type, [no, yes]"
+        travel_time:
+          type: string
+          description: "The specific time of departure, year + month + day + hour + minute, for example, \"10:30 on February 6, 2037\""
+        travel_position:
+          type: string
+          description: "The departure station location, for example, \"Chongqing North Railway Station\""
+        travel_price:
+          type: string
+          description: "Ticket price, numeric value + yuan, for example, \"355 yuan\""
+        travel_link:
+          type: string
+          description: "Ticket purchase link, for example, \"https://trains.ctrip.com/...\""
+    response: "Checking for suitable rides based on your preferences..."
+    actions:
+      - condition: "is_holiway == 'no'"
+        next_step: notify_no_vehicle
+      - condition: "is_holiway == 'yes'"
+        next_step: inform_ride_found
+
+  - id: notify_no_vehicle
+    prompt: "Unfortunately, I couldn't find a suitable vehicle for your specified criteria. Would you like to reselect the travel information?"
+    actions:
+      - condition: "user_input contains 'reselect' or user_input contains 'yes'"
+        next_step: collect_travel_details
+      - condition: "user_input contains 'no' or user_input contains 'do not reselect'"
+        next_step: apologize_no_service
+
+  - id: inform_ride_found
+    prompt: "Great news! I found a ride for you:\nTravel Time: {travel_time}\nDeparture Station: {travel_position}\nPrice: {travel_price}.\nAre you satisfied with this option?"
+    actions:
+      - condition: "user_input contains 'satisfied' or user_input contains 'yes'"
+        next_step: ask_buy_or_reconsider
+      - condition: "user_input contains 'not satisfied' or user_input contains 'no'"
+        next_step: ask_reselect_option
+
+  - id: ask_buy_or_reconsider
+    prompt: "Would you like to buy the ticket now or think about it again?"
+    actions:
+      - condition: "user_input contains 'buy the ticket now'"
+        next_step: inform_payment_link
+      - condition: "user_input contains 'think about it again'"
+        next_step: advise_reconsideration
+
+  - id: ask_reselect_option
+    prompt: "Would you like to reselect the travel information?"
+    actions:
+      - condition: "user_input contains 'reselect' or user_input contains 'yes'"
+        next_step: collect_travel_details
+      - condition: "user_input contains 'no' or user_input contains 'do not reselect'"
+        next_step: apologize_no_service
+
+  - id: advise_reconsideration
+    prompt: "Please take your time to think carefully before making a decision. Let me know if you decide to proceed or need further assistance."
+    next_step: null
+
+  - id: apologize_no_service
+    prompt: "I apologize that I couldn't find a suitable ride for you at this time. Is there anything else I can assist you with?"
+    next_step: null
+
+  - id: inform_payment_link
+    prompt: "Excellent! To proceed with the purchase, please follow this link: {travel_link}. Please complete the payment. Once you've completed the payment, please let me know so I can confirm the status."
+    next_step: call_ticket_status
+
+  - id: call_ticket_status
+    tool_call:
+      name: ticketStatus
+      description: "Confirm Ticket Status"
+      parameters:
+        person_number:
+          type: string
+          description: "User ID number, 18 digits, default is \"130000200305211823\""
+          required: false
+      output:
+        is_tickets:
+          type: string
+          description: "Whether the ticket is paid for. Enumeration type, [payment completed, payment not completed]"
+    response: "Checking ticket payment status..."
+    actions:
+      - condition: "is_tickets == 'payment completed'"
+        next_step: confirm_payment_complete
+      - condition: "is_tickets == 'payment not completed'"
+        next_step: notify_payment_incomplete
+
+  - id: confirm_payment_complete
+    prompt: "Your payment has been successfully completed! Enjoy your trip!"
+    next_step: null
+
+  - id: notify_payment_incomplete
+    prompt: "Your payment has not been completed. Please reopen the payment screen to complete the transaction."
+    actions:
+      - condition: "user_input contains 'pay again'"
+        next_step: inform_payment_link
+      - condition: "user_input contains 'cancel' or user_input contains 'later'"
+        next_step: apologize_no_service

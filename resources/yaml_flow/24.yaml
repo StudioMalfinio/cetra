@@ -1,0 +1,57 @@
+flow:
+  - id: ki000
+    prompt: "Start"
+    next_step: ki001
+  - id: ki001
+    prompt: "Current goal: Confirm the user identity. Ask for the identity of the employee who answered the phone, including name and work number. Then call getEmployeeStatus to get the identity of the employee, and judge the employee's identity based on the returned employee_name and employess_num."
+    tool_call:
+      name: getEmployeeStatus
+      description: "Get the identity of the employee in the current conversation"
+      parameters:
+        sever_ip:
+          type: string
+          description: "Server ip, ipv4 format, such as \"127.0.0.1\", if the function did not return the correct data, this parameter can be called again"
+          required: false
+    actions:
+      - condition: "employee_name is not null and employess_num is not null"
+        next_step: ki002
+      - condition: "else"
+        next_step: ki004
+  - id: ki002
+    prompt: "Current goal: Get print result. Call getPrintingResults to get the printing result, and determine whether the application is successful or failed based on the returned is_result."
+    tool_call:
+      name: getPrintingResults
+      description: "Get the printing result"
+      parameters: {}
+      output:
+        is_result:
+          type: string
+          description: "Printed result, enumeration type, [application is successful, application is unsuccessful]"
+        locations:
+          type: string
+          description: "Storage location, the format is: floor + machine name + machine number, such as \"2nd-floor Fengchao 2\""
+        pick_up_umber:
+          type: string
+          description: "Pickup number, 8 digits from 0 to 9, e.g. \"37889172\"."
+    actions:
+      - condition: "is_result == 'application is successful'"
+        next_step: ki003
+      - condition: "is_result == 'application is unsuccessful'"
+        next_step: ki004
+  - id: ki003
+    prompt: "Current goal: Ask the user how to pick up the document. The user can go to the pick-up location or the document can be delivered to the user. Ask the user to give a clear indication."
+    actions:
+      - condition: "Collect the document on their own"
+        next_step: ki005
+      - condition: "Delivery of the document"
+        next_step: ki006
+  - id: ki004
+    prompt: "Current goal: Notification of reasons for unsuccessful application. There may be two reasons for application failure. The first is that the document does not meet the specification. The second is that the applying information is not sufficient. Let the user contact the person in charge of printing for information and then apply again."
+    next_step: null
+  - id: ki005
+    prompt: "Current goal: Tell the pick-up location. Inform the user of relevant information based on the returned getPrintingResults, including the current location of the file based on the returned locations and its pickup number based on the returned pick _ up _ umber. Ask the user to pick up the document."
+    response: "The file is located at {locations} and the pickup number is {pick_up_umber}. Please pick up the document."
+    next_step: null
+  - id: ki006
+    prompt: "Current goal: Collect the user's workstation. Know about the location of the user's workstation, and collect the parameter: work_place. Tell the user that the delivery of the document is about to be scheduled. Ask the user to wait at the workstation. If there is no one at the workplace at the time of delivery, it will not be delivered."
+    next_step: null

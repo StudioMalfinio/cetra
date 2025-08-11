@@ -1,0 +1,99 @@
+flow:
+  - id: GK000
+    prompt: "Start"
+    next_step: GK001
+  - id: GK001
+    prompt: "If the one-time withdrawal amount is 20,000 RMB or less, the user can complete it directly at the ATM. If it is more than 20,000 RMB, an appointment is required."
+    actions:
+      - condition: "user_withdrawal_amount <= 20000"
+        next_step: GK002
+      - condition: "user_withdrawal_amount > 20000"
+        next_step: GK004
+  - id: GK002
+    prompt: "ATMs are generally located in each outlet. The specific address can be found in the map software. Of course, the user can ask the live customer service about the nearest ATM. Withdrawals are supported throughout the day when the ATM has money. The maximum amount per withdrawal is 5,000 RMB, with a daily limit of 4 transactions, culminating in a total of 20,000 RMB. Would you like to find the nearest ATM?"
+    actions:
+      - condition: "user_wants_to_find_atm == true"
+        next_step: GK003
+      - condition: "user_wants_to_find_atm == false"
+        next_step: end
+  - id: GK003
+    tool_call:
+      name: findATM
+      description: "Find ATM location"
+      parameters:
+        now_locate:
+          type: string
+          description: "The user's current location. If the user does not provide it, it will be fetched automatically. The format is: province and city + district and county + road name + road number, such as \"No. 1278, Xunyu Road, Nanfei City, Jiangyu Province\""
+          required: false
+    response: "The nearest ATM is {ATM_dict[bank_name]} located at {ATM_dict[location]}. There are {ATM_dict[quantity]} ATMs available."
+    next_step: end
+  - id: GK004
+    tool_call:
+      name: VerificeInfo
+      description: "Verify the user's identity"
+      parameters:
+        id_code:
+          type: string
+          description: "Identification number"
+          required: true
+        user_name:
+          type: string
+          description: "Name"
+          required: true
+        card_num:
+          type: string
+          description: "Bank card number, UnionPay standard card numbers are generally 16-19 digits long"
+          required: true
+    response: "Identity verification successful."
+    actions:
+      - condition: "test_value == 'true'"
+        next_step: GK005
+      - condition: "test_value == 'false'"
+        next_step: GK008
+  - id: GK005
+    tool_call:
+      name: intentReview
+      description: "Withdrawal intent review"
+      parameters:
+        withdrawal_intent:
+          type: string
+          description: "The intention of the withdrawal, what it is used for."
+          required: true
+        withdrawal_amount:
+          type: integer
+          description: "The amount of the withdrawal, positive integer"
+          required: true
+    response: "Your withdrawal intention is approved."
+    actions:
+      - condition: "is_success == 'success'"
+        next_step: GK006
+      - condition: "is_success == 'failed'"
+        next_step: GK008
+  - id: GK006
+    tool_call:
+      name: reservationCash
+      description: "Schedule large cash withdrawals"
+      parameters:
+        withdrawal_bank:
+          type: string
+          description: "Banks for withdrawals, such as \"Industrial and Commercial Bank of China in Shanghai Pudong Century Park\", \"CITIC Bank in Tianjin Heping 5th Avenue\""
+          required: true
+        withdrawal_amount:
+          type: integer
+          description: "The amount of the withdrawal, positive integer"
+          required: true
+    response: "Your withdrawal is reserved and will be available in {number} days. Please remember to bring your bank card and ID card for withdrawal. The reservation is only valid for that day. A new appointment is required after the expiration date."
+    actions:
+      - condition: "reservation_successful == true"
+        next_step: GK007
+      - condition: "reservation_successful == false"
+        next_step: GK008
+  - id: GK007
+    prompt: "Your withdrawal is reserved and will be available in {number} days. Please remember to bring your bank card and ID card for withdrawal. The reservation is only valid for that day. A new appointment is required after the expiration date."
+    next_step: end
+  - id: GK008
+    prompt: "The appointment failed. Please check your account balance and ensure there is sufficient funds for withdrawal. If necessary, you may visit our outlets for account-related checks."
+    next_step: end
+  - id: end
+    prompt: "Is there anything else I can help you with today?"
+    next_step: null

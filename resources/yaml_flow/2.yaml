@@ -1,0 +1,64 @@
+flow:
+  - id: start
+    prompt: "Gas outage feedback. Please provide your account number."
+    next_step: confirm_account
+
+  - id: confirm_account
+    tool_call:
+      name: lookMeter
+      description: "Query user's gas charge"
+      parameters:
+        user_account_number:
+          type: string
+          description: "user account, 13 digits, such as \"8281900000101\""
+          required: true
+    response: "{{#if is_success}}Account information confirmed.{{else}}Sorry, the account information is incorrect. Please re-enter your account number.{{/if}}"
+    actions:
+      - condition: "is_success == 'true'"
+        next_step: judge_balance
+      - condition: "is_success == 'false'"
+        next_step: confirm_account
+
+  - id: judge_balance
+    prompt: ""
+    actions:
+      - condition: "expense_residual != 'Insufficient balance'"
+        next_step: judge_announcement
+      - condition: "expense_residual == 'Insufficient balance'"
+        next_step: insufficient_balance
+
+  - id: judge_announcement
+    prompt: ""
+    actions:
+      - condition: "announcement"
+        next_step: notify_announcement
+      - condition: "else"
+        next_step: inquire_gas_availability
+
+  - id: notify_announcement
+    prompt: "There is an announcement: {{announcement}}. It is normal to be without gas temporarily. Please use equipment that doesn't require gas."
+    next_step: end
+
+  - id: inquire_gas_availability
+    prompt: "Is there gas around?"
+    actions:
+      - condition: "user_input == 'yes'"
+        next_step: device_malfunctioning
+      - condition: "user_input == 'no'"
+        next_step: speculate_no_gas
+
+  - id: device_malfunctioning
+    prompt: "The device may be malfunctioning. Please let someone get it repaired."
+    next_step: end
+
+  - id: speculate_no_gas
+    prompt: "Everything appears normal, but there is no gas at your home. Possible reasons for no gas can be speculated, like sudden maintenance or the main meter being broken. Please contact the property to solve the problem."
+    next_step: end
+
+  - id: insufficient_balance
+    prompt: "Your balance is insufficient. Please pay the bill in time."
+    next_step: end
+
+  - id: end
+    prompt: "Is there anything else I can help with?"
+    next_step: null

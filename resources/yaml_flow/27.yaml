@@ -1,0 +1,52 @@
+flow:
+  - id: BY000
+    prompt: "Are the files you want to print uploaded to the company's system?"
+    next_step: BY001
+
+  - id: BY001
+    prompt: "Please specify whether the files are uploaded to the system. If not, please upload them first. We need to review them before printing to prevent printing documents that cannot be printed."
+    actions:
+      - condition: "user_input == 'Not uploaded to the system'"
+        next_step: BY004
+      - condition: "user_input == 'Uploaded to the system'"
+        next_step: BY002
+
+  - id: BY002
+    prompt: "Do you have any other printing needs, such as color requirements? If not, the document will be printed in black and white, one copy."
+    next_step: BY003
+
+  - id: BY003
+    tool_call:
+      name: getPrint
+      description: "Make a request for document printing"
+      parameters:
+        file_code:
+          type: string
+          description: "The file number is usually the MD5 code of the file, such as \"49aa6f1abbb36907\""
+          required: true
+        file_num:
+          type: integer
+          description: "Number of servings, default 1"
+          required: false
+        file_color:
+          type: string
+          description: "Color, enumeration type, [grayscale printing, full color printing], default grayscale printing"
+          required: false
+        file_min:
+          type: string
+          description: "Print surface, enumeration type, [single-sided, duplex], default double-sided"
+          required: false
+      output:
+        is_success:
+          type: string
+          description: "Print result, enumeration type, [normal, error]"
+    response: "The print request has been submitted. The documents will be reviewed first, and then printed after approval."
+    next_step: BY004
+
+  - id: BY004
+    prompt: "Files have been obtained. The documents will be reviewed first, and then printed after approval. If there was an error in the previous step, please double-check your documents and re-upload them, then inform the staff."
+    next_step: BY005
+
+  - id: BY005
+    prompt: "Your file was not searchable because it contains content that cannot be printed. Please double-check your documents and re-upload them before letting the staff know."
+    next_step: null

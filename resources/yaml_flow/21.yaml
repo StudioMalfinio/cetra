@@ -1,0 +1,56 @@
+flow:
+  - id: BF000
+    prompt: "Start"
+    next_step: BF001
+
+  - id: BF001
+    prompt: "Are you Mr. Wang Zhenyan?"
+    actions:
+      - condition: "user_input == 'NO'"
+        next_step: BF002
+      - condition: "user_input == 'Yes'"
+        next_step: BF003
+
+  - id: BF002
+    prompt: "Apologize to the user and inform that there is a wrong call."
+    next_step: null
+
+  - id: BF003
+    prompt: "Invite Mr. Wang, the regular customer of Mr. Rice, to do a satisfaction survey. Are you willing to?"
+    actions:
+      - condition: "user_input == 'Willing tO'"
+        next_step: BF004
+      - condition: "user_input == 'Unwilling tO'"
+        next_step: BF005
+
+  - id: BF004
+    prompt: "Are you satisfied with the service?"
+    actions:
+      - condition: "user_input == 'Satisfied'"
+        next_step: BF008
+      - condition: "user_input == 'Unsatisfied'"
+        next_step: BF009
+
+  - id: BF005
+    prompt: "Can you tell us when you will be available?"
+    actions:
+      - condition: "user_input == 'Can tell'"
+        next_step: BF006
+      - condition: "user_input == 'Can not tell'"
+        next_step: BF007
+
+  - id: BF006
+    prompt: "Enquire the user's free time. Inform the user that the call will be made at the appropriate time slot."
+    next_step: null
+
+  - id: BF007
+    prompt: "Apologize and say goodbye to the user."
+    next_step: null
+
+  - id: BF008
+    prompt: "Thanks for the high evaluation, and inform the user that good service will be maintained."
+    next_step: null
+
+  - id: BF009
+    prompt: "Explain that our company will try to satisfy the user, and apologize to him/her."
+    next_step: null

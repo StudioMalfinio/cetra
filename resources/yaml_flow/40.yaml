@@ -1,0 +1,94 @@
+flow:
+  - id: WB000
+    prompt: "Hello! I can help you with currency exchange. Would you like to know about the exchange rate or exchange currency directly?"
+    actions:
+      - condition: "user_input.lower().includes('know about the exchange rate')"
+        next_step: WB002
+      - condition: "user_input.lower().includes('exchange currency directly')"
+        next_step: WB003
+      - condition: "true" # Default to asking again or handling unexpected input
+        next_step: WB001 # Re-prompt for clarity
+
+  - id: WB001
+    prompt: "Are you interested in the exchange rate, or would you like to proceed with exchanging currency?"
+    actions:
+      - condition: "user_input.lower().includes('know about the exchange rate')"
+        next_step: WB002
+      - condition: "user_input.lower().includes('exchange currency directly')"
+        next_step: WB003
+      - condition: "true"
+        next_step: WB001 # Re-prompt for clarity
+
+  - id: WB002
+    tool_call:
+      name: acquisitionRate
+      description: "Exchange rate query based on the currency proposed by the user"
+      parameters:
+        primary_currency_name:
+          type: string
+          description: "Main currency name, enumeration type, [\"USD\", \"EUR\", \"CNY\", \"JPY\", \"GBP\", \"CAD\", \"AUD\", \"CHF\", \"INR\", \"SGD\"]"
+          required: true
+        secondary_currency_name:
+          type: string
+          description: "Sub-currency name, not to be blank"
+          required: true
+    response: "The exchange rate for {{primary_currency_name}} to {{secondary_currency_name}} is {{exchange_rate_table.exchange_rate}}. The exchange rate table is: {{exchange_rate_table}}"
+    next_step: WB001 # Return to main flow for further actions or end
+
+  - id: WB003
+    tool_call:
+      name: exchangeMoney
+      description: "Currency exchange"
+      parameters:
+        exchanged_currency_name:
+          type: string
+          description: "Name of the exchanged currency, enumeration type, [\"USD\", \"EUR\", \"JPY\", \"GBP\", \"CAD\", \"AUD\", \"CHF\", \"INR\", \"SGD\"]"
+          required: true
+        exchange_direction:
+          type: string
+          description: "Direction of exchange, enumeration type, [settlement, sale]"
+          required: true
+        exchange_quantity:
+          type: string
+          description: "Exchanged quantity to be a positive floating point number. The unit is the standard unit of the currency to be exchanged"
+          required: true
+    response: "{{exchange_result}}"
+    next_step: WB004 # This will be handled by the condition in WB004, but a next_step is required
+
+  - id: WB004
+    prompt: "Please check your account for the exchanged currency."
+    actions:
+      - condition: "exchange_result == 'success'"
+        next_step: WB001 # Can go back to main flow or to end
+      - condition: "exchange_result == 'no exchange times'"
+        next_step: WB006
+      - condition: "exchange_result == 'exceed the foreign exchange limit'"
+        next_step: WB007
+      - condition: "exchange_result == 'insufficient balance'"
+        next_step: WB008
+      - condition: "true" # Fallback if exchange_result is unexpected
+        next_step: WB001
+
+  - id: WB005
+    prompt: "It seems there was an issue with your currency exchange. Could you please clarify the reason? Is it due to no exchange times, exceeding the foreign exchange limit, or an insufficient balance?"
+    actions:
+      - condition: "user_input.lower().includes('no exchange times')"
+        next_step: WB006
+      - condition: "user_input.lower().includes('exceed the foreign exchange limit')"
+        next_step: WB007
+      - condition: "user_input.lower().includes('insufficient balance')"
+        next_step: WB008
+      - condition: "true"
+        next_step: WB005 # Re-prompt if clarification is needed
+
+  - id: WB006
+    prompt: "Your number of Express Redemption times for this year has been used up. Please visit the counter of the People's Bank of China to conduct this transaction."
+    next_step: null
+
+  - id: WB007
+    prompt: "You have exceeded the foreign exchange control limit. Please go to the counter of the People's Bank of China to apply."
+    next_step: null
+
+  - id: WB008
+    prompt: "Your account balance is insufficient for this transaction."
+    next_step: WB001 # Allow user to try again or perform other actions

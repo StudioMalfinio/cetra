@@ -1,0 +1,132 @@
+flow:
+  - id: start
+    prompt: "Welcome to our gas company service. How can I help you today? You can inquire about your gas fee or pay your bill."
+    actions:
+      - condition: "user_input.contains('gas fee inquiry')"
+        next_step: ask_user_account_for_bill
+      - condition: "user_input.contains('gas bill payment')"
+        next_step: ask_user_account_for_payment
+
+  - id: ask_user_account_for_bill
+    prompt: "Please provide your 13-digit user account number to check your gas bills."
+    next_step: look_meter
+
+  - id: look_meter
+    tool_call:
+      name: lookMeter
+      description: "Query the user's gas bills"
+      parameters:
+        user_account_number:
+          type: string
+          description: "User ID, 13 digits, e.g. \"8281900000101\""
+          required: true
+      output:
+        expense_residual:
+          type: string
+          description: "Remaining fee, ¥ + floating-point number"
+        is_success:
+          type: string
+          description: "Successful or not, enumeration type, [true, false]"
+        expense_dict:
+          type: object
+          description: "List of fees"
+          properties:
+            time:
+              type: string
+              description: "Time, in the format of \"year + month\", e.g. \"November 2044\""
+            start_volume:
+              type: string
+              description: "Volume, floating-point number, in cubic meters"
+            end_volume:
+              type: integer
+              description: "Stop volume, floating-point number, in cubic meters"
+            gas_volume:
+              type: string
+              description: "Gas volume, floating-point number, in cubic meters"
+            fee:
+              type: string
+              description: "Cost, ¥ + positive floating-point number"
+            remaining_fee:
+              type: string
+              description: "Remaining fee, ¥ + positive floating-point amount"
+    response: "Your current remaining gas fee is {expense_residual}. Would you like a more specific list of expenses?"
+    actions:
+      - condition: "tool_output.is_success == 'true' and user_input.contains('yes')"
+        next_step: ask_month_for_expense_list
+      - condition: "tool_output.is_success == 'true' and user_input.contains('no')"
+        next_step: end_inquiry
+      - condition: "tool_output.is_success == 'false'"
+        next_step: ask_user_to_reenter_bill_info
+
+  - id: ask_month_for_expense_list
+    prompt: "What months would you like the list of expenses for?"
+    next_step: tell_expense_list
+
+  - id: tell_expense_list
+    prompt: "Here is the list of expenses for the requested period: {tool_output.expense_dict}. Thank you."
+    next_step: end_inquiry
+
+  - id: ask_user_to_reenter_bill_info
+    prompt: "There was an issue retrieving your gas bill information. Please re-enter your user account number."
+    next_step: look_meter
+
+  - id: end_inquiry
+    prompt: "Is there anything else I can help you with regarding your gas bill?"
+    actions:
+      - condition: "user_input.contains('yes')"
+        next_step: start
+      - condition: "user_input.contains('no')"
+        next_step: goodbye
+
+  - id: ask_user_account_for_payment
+    prompt: "Please provide your 13-digit user account number to get the payment link."
+    next_step: get_pay_link
+
+  - id: get_pay_link
+    tool_call:
+      name: getPayLink
+      description: "Get the payment link"
+      parameters:
+        user_account_number:
+          type: string
+          description: "User ID, 13 digits, e.g. \"8281900000101\""
+          required: true
+      output:
+        pay_link:
+          type: string
+          description: "Payment links, such as \"pay.alipapa.com/pay/code=95771066-2151-43c6-2cd8-562e69d9c5a2\""
+        is_success:
+          type: string
+          description: "Successful or not, enumeration type, [true, false]"
+    response: "Here is the payment link: {pay_link}. Have you already paid?"
+    actions:
+      - condition: "tool_output.is_success == 'true' and user_input.contains('yes')"
+        next_step: check_gas_balance
+      - condition: "tool_output.is_success == 'true' and user_input.contains('no')"
+        next_step: inform_payment_due
+      - condition: "tool_output.is_success == 'false'"
+        next_step: ask_user_to_reenter_payment_info
+
+  - id: check_gas_balance
+    prompt: "We will check if your gas balance has been received. Is there anything else I can help you with?"
+    actions:
+      - condition: "user_input.contains('yes')"
+        next_step: start
+      - condition: "user_input.contains('no')"
+        next_step: goodbye
+
+  - id: inform_payment_due
+    prompt: "Please complete your payment within the next 10 minutes. Is there anything else I can help you with?"
+    actions:
+      - condition: "user_input.contains('yes')"
+        next_step: start
+      - condition: "user_input.contains('no')"
+        next_step: goodbye
+
+  - id: ask_user_to_reenter_payment_info
+    prompt: "There was an issue generating the payment link. Please re-enter your user account number."
+    next_step: get_pay_link
+
+  - id: goodbye
+    prompt: "Thank you for contacting us. Goodbye!"
+    next_step: null

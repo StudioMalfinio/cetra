@@ -1,0 +1,163 @@
+flow:
+  - id: LA000
+    prompt: "Hello! I'm your meeting arrangement assistant. How can I help you schedule a meeting today?"
+    next_step: LA001
+
+  - id: LA001
+    tool_call:
+      name: scheduleMeeting
+      description: "Book a meeting and judge the feasibility."
+      parameters:
+        meeting_time:
+          type: string
+          description: "Meeting time, format: year + month + day + hour + minute, such as \"January 27, 2044, 17:22\""
+          required: true
+        estimated_duration:
+          type: integer
+          description: "Estimated duration, positive integer"
+          required: true
+        guest_list:
+          type: object
+          description: "Guestlist"
+          properties:
+            guest_name:
+              type: string
+              description: "Guest name, an appellation is available"
+            guest_contact:
+              type: string
+              description: "Guest contact information, either a 13-digit phone number such as \"13812345678\" or an e-mail address in the format of \"XXX@email.com\""
+            guest_ding_account:
+              type: string
+              description: "Guest DingTalk account, if there is an account, fill in to determine whether one can attend the meeting, usually letters + numbers. If not, fill in \"\""
+          required: true
+        whether_contact:
+          type: string
+          description: "Whether to contact, enumeration type, [true, false]"
+          required: true
+        ignore_error:
+          type: string
+          description: "Ignore errors, enumeration type, [true, false], default is false"
+          required: false
+      output:
+        whether:
+          type: string
+          description: "Feasible or not, enumeration type, [true, false]"
+        unable_attend:
+          type: object
+          description: "Unable attendees"
+          properties:
+            items:
+              type: string
+              description: "Guest name, an appellation is available"
+            guest_contact:
+              type: string
+              description: "Guest contact information, either a 13-digit phone number such as \"13812345678\" or an e-mail address in the format of \"XXX@email.com\""
+        reason:
+          type: string
+          description: "Reason for failure, such as \"time error\", \"number of people exceeds limit\", if possible,\" \""
+        join_link:
+          type: string
+          description: "Join a link. URL, for example, \"ding.com/s/code=98b6c5d995b77e2f9e790616c88490b5\". If not feasible, then \"\""
+    actions:
+      - condition: "{whether} == 'true'"
+        next_step: LA002
+      - condition: "{whether} == 'false'"
+        next_step: LA006
+
+  - id: LA002
+    prompt: "The meeting has been successfully scheduled! A text message has been sent to make contact. Please make sure to enter the meeting on time. Do you need a meeting link?"
+    actions:
+      - condition: "user_input.lower() in ['yes', 'link needed']"
+        next_step: LA003
+      - condition: "user_input.lower() in ['no', 'no link needed']"
+        next_step: LA009
+
+  - id: LA003
+    prompt: "Would you like to set a reminder for this meeting?"
+    actions:
+      - condition: "user_input.lower() == 'yes'"
+        next_step: LA004
+      - condition: "user_input.lower() in ['no', 'no need to inform']"
+        next_step: LA005
+
+  - id: LA004
+    prompt: "Great! How many minutes before the meeting should I remind you? (e.g., 10 for 10 minutes)"
+    next_step: LA005
+
+  - id: LA005
+    prompt: "Understood. Please ensure you participate in the meeting on time. Is there anything else I can assist you with?"
+    next_step: null
+
+  - id: LA006
+    prompt: "I apologize, the meeting could not be scheduled. The reason is: {reason}. The following guests are unable to attend: {unable_attend}. "
+    next_step: LA007
+
+  - id: LA007
+    prompt: "Would you like to adjust the meeting content, or force the meeting to start despite the issues?"
+    actions:
+      - condition: "user_input.lower() == 'start meeting forcibly'"
+        next_step: LA008
+      - condition: "user_input.lower() == 'adjust meeting content'"
+        next_step: LA001
+
+  - id: LA008
+    tool_call:
+      name: scheduleMeeting
+      description: "Re-attempting to book the meeting, forcibly ignoring errors if possible."
+      parameters:
+        meeting_time:
+          type: string
+          description: "Meeting time, format: year + month + day + hour + minute, such as \"January 27, 2044, 17:22\""
+          required: true
+        estimated_duration:
+          type: integer
+          description: "Estimated duration, positive integer"
+          required: true
+        guest_list:
+          type: object
+          description: "Guestlist"
+          properties:
+            guest_name:
+              type: string
+              description: "Guest name, an appellation is available"
+            guest_contact:
+              type: string
+              description: "Guest contact information, either a 13-digit phone number such as \"13812345678\" or an e-mail address in the format of \"XXX@email.com\""
+            guest_ding_account:
+              type: string
+              description: "Guest DingTalk account, if there is an account, fill in to determine whether one can attend the meeting, usually letters + numbers. If not, fill in \"\""
+          required: true
+        whether_contact:
+          type: string
+          description: "Whether to contact, enumeration type, [true, false]"
+          required: true
+        ignore_error:
+          type: string
+          description: "Ignore errors, enumeration type, [true, false], default is false"
+          required: false
+      output:
+        whether:
+          type: string
+          description: "Feasible or not, enumeration type, [true, false]"
+        unable_attend:
+          type: object
+          description: "Unable attendees"
+          properties:
+            items:
+              type: string
+              description: "Guest name, an appellation is available"
+            guest_contact:
+              type: string
+              description: "Guest contact information, either a 13-digit phone number such as \"13812345678\" or an e-mail address in the format of \"XXX@email.com\""
+        reason:
+          type: string
+          description: "Reason for failure, such as \"time error\", \"number of people exceeds limit\", if possible,\" \""
+        join_link:
+          type: string
+          description: "Join a link. URL, for example, \"ding.com/s/code=98b6c5d995b77e2f9e790616c88490b5\". If not feasible, then \"\""
+    response: "Attempting to schedule the meeting forcibly now. Please wait..."
+    next_step: LA002
+
+  - id: LA009
+    prompt: "Here is your meeting entry link: {join_link}."
+    next_step: LA003

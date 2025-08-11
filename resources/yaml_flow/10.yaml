@@ -1,0 +1,144 @@
+flow:
+  - id: start
+    prompt: "Hello! I am your Digital Invoicing Assistant. I can help you with invoice reimbursements. What is your username and password?"
+    next_step: look_ticket
+
+  - id: look_ticket
+    tool_call:
+      name: lookTicket
+      description: "Check the user's ticket"
+      parameters:
+        user_name:
+          type: string
+          description: "Username, alpha + number + space only"
+          required: true
+        user_password:
+          type: string
+          description: "User password, 8~16 digits uppercase and lowercase letters + numbers + symbols"
+          required: true
+      output:
+        is_success:
+          type: string
+          description: "Successful or not, enumeration type, [true, false]"
+        ticket_dict:
+          type: object
+          description: "The list of bills, unsuccessful means empty"
+          properties:
+            buy_role:
+              type: string
+              description: "The name of the buyer, can be the name of the company, or the name of the person"
+            sell_role:
+              type: string
+              description: "The name of the seller, can be the name of the company, or the name of the person"
+            sum_price:
+              type: string
+              description: "Total amount, ¥ + positive float (keep two decimal places)"
+            ticket_code:
+              type: string
+              description: "Invoice code, e.g. \"011002301111\""
+            ticket_num:
+              type: string
+              description: "Invoice number, e.g. \"93288473\""
+            ticket_link:
+              type: string
+              description: "A detailed link to the e-invoice, URL, e.g. \"fapiao.alili.com/fapiao/ticketCode=011002301111&ticketNum=93288473\""
+            ticket_ai:
+              type: string
+              description: "Invoice description: An AI description of the invoice content, which can include invoice information such as time and amount."
+    response: "Processing your request..."
+    next_step: process_ticket_status
+
+  - id: process_ticket_status
+    prompt: ""
+    actions:
+      - condition: "is_success == 'true'"
+        next_step: present_content
+      - condition: "is_success == 'false'"
+        next_step: no_ticket_found
+
+  - id: present_content
+    prompt: "Here are your tickets:\n{% for ticket in ticket_dict %}{{ ticket.buy_role }} - {{ ticket.sell_role }} - {{ ticket.sum_price }} - {{ ticket.ticket_code }} - {{ ticket.ticket_num }} - {{ ticket.ticket_ai }}\n{% endfor %}\nDo you need reimbursement for any of these invoices?"
+    actions:
+      - condition: "user_input contains 'yes' or 'some'"
+        next_step: ask_reimbursement_details
+      - condition: "user_input contains 'no' or 'none'"
+        next_step: inform_cannot_reimburse
+
+  - id: inform_cannot_reimburse
+    prompt: "It seems that the invoices you are looking for cannot be reimbursed. This might be because the reimbursement period has expired, or they have already been reimbursed. Is there anything else I can help you with?"
+    next_step: end
+
+  - id: no_ticket_found
+    prompt: "It appears there are no tickets associated with your account. Please ensure you have collected your tickets first. If other processes involve obtaining invoices, you can also use those. Can I help with anything else?"
+    next_step: end
+
+  - id: ask_reimbursement_details
+    prompt: "Please provide the ticket code and ticket number for the invoices you wish to be reimbursed for, along with the reason for reimbursement and your name for submission."
+    next_step: trim_ticket
+
+  - id: trim_ticket
+    tool_call:
+      name: trimTicket
+      description: "Get the reimbursement link"
+      parameters:
+        ticket_uuid_list:
+          type: object
+          description: "The list of bills that need to be reimbursed, can't be empty"
+          properties:
+            ticket_code:
+              type: string
+              description: "Invoice code, e.g. \"011002301111\""
+              required: true
+            ticket_num:
+              type: string
+              description: "Invoice number, e.g. \"93288473\""
+              required: true
+          required: true
+        trim_ticket_reason:
+          type: string
+          description: "Reimbursement reasons, such as \"business trips\""
+          required: true
+        trim_people:
+          type: string
+          description: "The submitter, which requires the user to enter their name"
+          required: true
+      output:
+        ticket_link:
+          type: string
+          description: "Reimbursement link, e.g. \"www.alipan.com/s/uuid=95771066-2151-43c6-2cd8-562e69d9c5a2\""
+        ticket_money:
+          type: string
+          description: "Reimbursement amount, ¥ + positive floating-point (keep two decimal places)"
+    response: "Here is your reimbursement link: {{ ticket_link }} for the amount of {{ ticket_money }}. Would you like to submit this for review?"
+    next_step: process_review_submission
+
+  - id: process_review_submission
+    actions:
+      - condition: "user_input contains 'yes'"
+        next_step: submit_for_review
+      - condition: "user_input contains 'no'"
+        next_step: end
+
+  - id: submit_for_review
+    tool_call:
+      name: reimburse
+      description: "Send to the next department for reimbursement"
+      parameters:
+        ticket_link:
+          type: string
+          description: "Reimbursement link, e.g. \"www.alipan.com/s/uuid=95771066-2151-43c6-2cd8-562e69d9c5a2\""
+          required: true
+        sending_department:
+          type: string
+          description: "The department name, not required if the previous department is used"
+          required: false
+      output:
+        is_success:
+          type: string
+          description: "Successful or not, enumeration type, [true, false]"
+    response: "Your reimbursement request has been submitted for review. Is there anything else I can assist you with today?"
+    next_step: end
+
+  - id: end
+    prompt: "Thank you for using the Digital Invoicing Assistant. Goodbye!"
+    next_step: null
