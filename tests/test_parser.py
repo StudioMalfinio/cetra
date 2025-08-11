@@ -1,8 +1,8 @@
 """
-Pytest tests for CETRA workflow parser.
+Pytest tests for CETRA flow parser.
 
 This module contains tests that validate the YAML parser works correctly
-by loading the demo workflow and verifying its parsed contents.
+by loading flow files and verifying their parsed contents.
 """
 
 import pytest
@@ -12,118 +12,125 @@ from pathlib import Path
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from cetra.parser import WorkflowParser, WorkflowParserError
-from cetra.models import WorkflowConfig
+from cetra.parser import FlowParser, FlowParserError
+from cetra.models import FlowConfig
 
 
-class TestWorkflowParser:
-    """Test suite for WorkflowParser functionality."""
+class TestFlowParser:
+    """Test suite for FlowParser functionality."""
     
     def setup_method(self):
         """Set up test fixtures before each test method."""
-        self.parser = WorkflowParser()
-        self.demo_file = Path(__file__).parent.parent / "demo_workflow.yaml"
+        self.parser = FlowParser()
+        self.test_flow_file = Path(__file__).parent.parent / "resources/yaml_flow/0.yaml"
     
-    def test_demo_workflow_exists(self):
-        """Test that the demo workflow file exists."""
-        assert self.demo_file.exists(), f"Demo workflow file not found: {self.demo_file}"
-        assert self.demo_file.is_file(), f"Demo workflow path is not a file: {self.demo_file}"
+    def test_flow_file_exists(self):
+        """Test that the test flow file exists."""
+        assert self.test_flow_file.exists(), f"Test flow file not found: {self.test_flow_file}"
+        assert self.test_flow_file.is_file(), f"Test flow path is not a file: {self.test_flow_file}"
     
-    def test_load_demo_workflow(self):
-        """Test loading and parsing the demo workflow."""
-        # Load the workflow
-        config = self.parser.load_workflow(self.demo_file)
+    def test_load_flow(self):
+        """Test loading and parsing a flow file."""
+        # Load the flow
+        config = self.parser.load_flow(self.test_flow_file)
         
-        # Verify it returns a WorkflowConfig instance
-        assert isinstance(config, WorkflowConfig)
+        # Verify it returns a FlowConfig instance
+        assert isinstance(config, FlowConfig)
         
-        # Verify basic workflow properties
-        assert config.name == "hello_agent_demo"
-        assert config.description == "Démonstration basique d'un agent conversationnel"
+        # Verify flow structure
+        assert hasattr(config, 'flow')
+        assert isinstance(config.flow, list)
+        assert len(config.flow) > 0
     
-    def test_demo_workflow_agents(self):
-        """Test that demo workflow agents are correctly parsed."""
-        config = self.parser.load_workflow(self.demo_file)
+    def test_flow_steps_structure(self):
+        """Test that flow steps have the correct structure."""
+        config = self.parser.load_flow(self.test_flow_file)
         
-        # Verify agents exist
-        assert "greeter" in config.agents
-        assert "helper" in config.agents
-        
-        # Verify agent configurations
-        greeter = config.agents["greeter"]
-        assert greeter.instructions == "Tu es un assistant amical et professionnel. Réponds de manière chaleureuse et personnalisée."
-        assert greeter.temperature == 0.7
-        
-        helper = config.agents["helper"]
-        assert helper.instructions == "Tu es un assistant serviable qui aime aider les utilisateurs."
-        assert helper.temperature == 0.5
+        # Check first step
+        first_step = config.flow[0]
+        assert hasattr(first_step, 'id')
+        assert first_step.id == "start"
+        assert hasattr(first_step, 'prompt')
+        assert first_step.prompt is not None
+        assert hasattr(first_step, 'next_step')
     
-    def test_demo_workflow_steps(self):
-        """Test that demo workflow steps are correctly parsed."""
-        config = self.parser.load_workflow(self.demo_file)
+    def test_flow_with_tool_calls(self):
+        """Test that flows with tool calls are parsed correctly."""
+        config = self.parser.load_flow(self.test_flow_file)
         
-        # Verify number of steps
-        assert len(config.steps) == 3
+        # Find a step with tool_call
+        tool_steps = [step for step in config.flow if step.tool_call is not None]
+        assert len(tool_steps) > 0
         
-        # Verify step details
-        steps = config.steps
+        # Verify tool_call structure
+        tool_step = tool_steps[0]
+        assert hasattr(tool_step.tool_call, 'name')
+        assert hasattr(tool_step.tool_call, 'description')
+        assert hasattr(tool_step.tool_call, 'parameters')
+        assert hasattr(tool_step.tool_call, 'output')
+    
+    def test_flow_with_actions(self):
+        """Test that flows with conditional actions are parsed correctly."""
+        config = self.parser.load_flow(self.test_flow_file)
         
-        assert steps[0].name == "welcome"
-        assert steps[0].agent == "greeter"
-        assert steps[0].ask == "Dis bonjour à {name} et présente-toi brièvement"
+        # Find a step with actions
+        action_steps = [step for step in config.flow if step.actions is not None]
+        assert len(action_steps) > 0
         
-        assert steps[1].name == "offer_help"
-        assert steps[1].agent == "helper"
-        assert steps[1].ask == "Demande à {name} comment tu peux l'aider aujourd'hui"
+        # Verify action structure
+        action_step = action_steps[0]
+        assert isinstance(action_step.actions, list)
         
-        assert steps[2].name == "farewell"
-        assert steps[2].agent == "greeter"
-        assert steps[2].ask == "Remercie {name} et dis au revoir poliment"
+        first_action = action_step.actions[0]
+        assert hasattr(first_action, 'condition')
+        assert hasattr(first_action, 'next_step')
+    
+    def test_multiple_flow_files(self):
+        """Test parsing multiple flow files."""
+        flow_dir = Path(__file__).parent.parent / "resources/yaml_flow"
+        flow_files = list(flow_dir.glob("*.yaml"))[:3]  # Test first 3 files
+        
+        for flow_file in flow_files:
+            config = self.parser.load_flow(flow_file)
+            assert isinstance(config, FlowConfig)
+            assert len(config.flow) > 0
+            
+            # Each flow should have a starting step
+            step_ids = [step.id for step in config.flow]
+            assert len(step_ids) > 0
     
     def test_nonexistent_file_error(self):
         """Test that loading a nonexistent file raises appropriate error."""
-        nonexistent_file = "nonexistent_workflow.yaml"
+        nonexistent_file = "nonexistent_flow.yaml"
         
-        with pytest.raises(WorkflowParserError) as excinfo:
-            self.parser.load_workflow(nonexistent_file)
+        with pytest.raises(FlowParserError) as excinfo:
+            self.parser.load_flow(nonexistent_file)
         
         assert "not found" in str(excinfo.value).lower()
     
-    def test_display_parsed_workflow(self, capsys):
-        """Test displaying the parsed workflow in a readable format."""
-        config = self.parser.load_workflow(self.demo_file)
+    def test_display_parsed_flow(self, capsys):
+        """Test displaying the parsed flow in a readable format."""
+        config = self.parser.load_flow(self.test_flow_file)
         
-        # Display formatted output (similar to original script)
-        print(f"🚀 Loading workflow: {self.demo_file.name}")
-        print(f"📋 Workflow: {config.name}")
-        
-        if config.description:
-            print(f"📄 Description: {config.description}")
-        
-        print("\n👥 Agents:")
-        for agent_name, agent_config in config.agents.items():
-            # Truncate instructions if too long
-            instructions = agent_config.instructions
-            if len(instructions) > 50:
-                instructions = instructions[:47] + "..."
-            
-            print(f"  - {agent_name}: \"{instructions}\" (temp: {agent_config.temperature})")
+        # Display formatted output
+        print(f"🚀 Loading flow: {self.test_flow_file.name}")
+        print(f"📋 Flow with {len(config.flow)} steps")
         
         print("\n⚡ Steps:")
-        for i, step in enumerate(config.steps, 1):
-            # Truncate ask if too long
-            ask = step.ask
-            if len(ask) > 50:
-                ask = ask[:47] + "..."
+        for i, step in enumerate(config.flow, 1):
+            prompt_preview = ""
+            if step.prompt:
+                prompt_preview = step.prompt[:50] + "..." if len(step.prompt) > 50 else step.prompt
             
-            print(f"  {i}. {step.name} → {step.agent}: \"{ask}\"")
+            tool_info = f" [Tool: {step.tool_call.name}]" if step.tool_call else ""
+            action_info = f" [Actions: {len(step.actions)}]" if step.actions else ""
+            
+            print(f"  {i}. {step.id}: {prompt_preview}{tool_info}{action_info}")
         
-        print("\n✅ Parsing successful!")
+        print("\n✅ Flow parsing successful!")
         
         # Capture output and verify key elements are present
         captured = capsys.readouterr()
-        assert "🚀 Loading workflow" in captured.out
-        assert "hello_agent_demo" in captured.out
-        assert "greeter" in captured.out
-        assert "helper" in captured.out
-        assert "✅ Parsing successful!" in captured.out
+        assert "🚀 Loading flow" in captured.out
+        assert "✅ Flow parsing successful!" in captured.out
+        assert "steps" in captured.out.lower()
